@@ -103,6 +103,17 @@ function cleanISBN(isbn) {
   return isbn.replace(/[^0-9X]/gi, '');
 }
 
+// Google Search Helper Button for Local Malaysian Books
+document.getElementById('btn-search-google').addEventListener('click', () => {
+  const isbn = document.getElementById('nb-isbn').value;
+  if (isbn) {
+    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(isbn + ' site:my OR popular OR mph')}`;
+    window.open(searchUrl, '_blank');
+  } else {
+    alert('No ISBN found to search.');
+  }
+});
+
 // Add Quantity to Existing Record
 document.getElementById('btn-confirm-add').addEventListener('click', async () => {
   const addQty = parseInt(document.getElementById('add-qty-input').value, 10);
