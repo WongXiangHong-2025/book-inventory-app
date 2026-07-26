@@ -103,15 +103,25 @@ function cleanISBN(isbn) {
   return isbn.replace(/[^0-9X]/gi, '');
 }
 
-// Google Search Helper Button for Local Malaysian Books
+// Google Search Helper Button (Bypasses Mobile Pop-up Blockers)
 document.getElementById('btn-search-google').addEventListener('click', () => {
   const isbn = document.getElementById('nb-isbn').value;
-  if (isbn) {
-    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(isbn + ' site:my OR popular OR mph')}`;
-    window.open(searchUrl, '_blank');
-  } else {
+  
+  if (!isbn) {
     alert('No ISBN found to search.');
+    return;
   }
+
+  const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(isbn + ' site:my OR popular OR mph')}`;
+
+  // Create a temporary standard link element to bypass browser pop-up blockers
+  const link = document.createElement('a');
+  link.href = searchUrl;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 });
 
 // Add Quantity to Existing Record
@@ -307,3 +317,4 @@ function exportCSV(books, filename) {
   link.click();
   document.body.removeChild(link);
 }
+
