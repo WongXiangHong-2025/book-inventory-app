@@ -73,7 +73,13 @@
     <section id="section-new-book" class="view-section hidden">
       <h2>New Book Entry</h2>
       <form id="form-new-book">
-        <label>ISBN: <input type="text" id="nb-isbn" readonly /></label>
+        <label>ISBN:
+          <div style="display: flex; gap: 8px; margin-top: 4px;">
+            <input type="text" id="nb-isbn" readonly style="flex: 1;" />
+            <button type="button" id="btn-search-google" class="btn btn-secondary">Search Google</button>
+          </div>
+        </label>
+
         <label>Book Title*: <input type="text" id="nb-title" placeholder="Enter title manually if blank" required /></label>
         <label>Publisher: <input type="text" id="nb-publisher" placeholder="Enter publisher manually if blank" /></label>
         <label>Rack Location*: <input type="text" id="nb-rack" required /></label>
