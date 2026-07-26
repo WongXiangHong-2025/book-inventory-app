@@ -222,7 +222,7 @@ function updateSummaryCards(books) {
   document.getElementById('stat-titles').textContent = books.length;
   document.getElementById('stat-stock').textContent = books.reduce((acc, b) => acc + b.quantity, 0);
   document.getElementById('stat-edu').textContent = books.filter(b => b.bookCategory === 'Educational Books').length;
-  document.getElementById('stat-comics').textContent = books.filter(b => b.bookCategory === 'Comics').length;
+  document.getElementById('stat-comics').textContent = books.filter(b => b.bookCategory === 'Novel / Comic' || b.bookCategory === 'Comics').length;
 }
 
 // Edit Book Callback
