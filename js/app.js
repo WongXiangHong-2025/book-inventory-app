@@ -1,12 +1,15 @@
 let activeBook = null;
 let filteredBooksList = [];
+let pendingBarcode = '';
 
 const scanner = new BarcodeScanner('video-preview', handleScannedISBN);
 
 // DOM Elements
 const sectionScan = document.getElementById('section-scan');
 const sectionNewBook = document.getElementById('section-new-book');
+const sectionNewStationery = document.getElementById('section-new-stationery');
 const sectionInventory = document.getElementById('section-inventory');
+const modalItemType = document.getElementById('modal-item-type');
 const modalExisting = document.getElementById('modal-existing-book');
 const manualIsbnInput = document.getElementById('manual-isbn');
 
@@ -20,8 +23,10 @@ document.getElementById('nav-inventory').addEventListener('click', () => {
 function showSection(name) {
   sectionScan.classList.add('hidden');
   sectionNewBook.classList.add('hidden');
+  sectionNewStationery.classList.add('hidden');
   sectionInventory.classList.add('hidden');
   modalExisting.classList.add('hidden');
+  modalItemType.classList.add('hidden');
 
   document.getElementById('nav-scan').classList.remove('active');
   document.getElementById('nav-inventory').classList.remove('active');
@@ -33,8 +38,11 @@ function showSection(name) {
     sectionInventory.classList.remove('hidden');
     document.getElementById('nav-inventory').classList.add('active');
     scanner.stop();
-  } else if (name === 'new') {
+  } else if (name === 'new-book') {
     sectionNewBook.classList.remove('hidden');
+    scanner.stop();
+  } else if (name === 'new-stationery') {
+    sectionNewStationery.classList.remove('hidden');
     scanner.stop();
   }
 }
@@ -44,24 +52,23 @@ document.getElementById('btn-start-scan').addEventListener('click', () => {
   scanner.start();
 });
 
-// Manual ISBN Search
+// Manual Barcode / ISBN Search
 document.getElementById('btn-manual-submit').addEventListener('click', () => {
   const isbn = manualIsbnInput.value.trim();
   if (isbn) {
     handleScannedISBN(isbn);
   } else {
-    alert('Please enter an ISBN');
+    alert('Please enter a Barcode or ISBN');
   }
 });
 
 async function handleScannedISBN(rawISBN) {
   const isbn = cleanISBN(rawISBN);
   if (!isbn) {
-    alert('Invalid ISBN');
+    alert('Invalid Barcode / ISBN');
     return;
   }
 
-  // Clear input field right away
   manualIsbnInput.value = '';
 
   try {
@@ -70,6 +77,7 @@ async function handleScannedISBN(rawISBN) {
 
     if (localBook) {
       activeBook = localBook;
+      document.getElementById('ext-type').textContent = localBook.itemType || 'Book';
       document.getElementById('ext-title').textContent = localBook.title;
       document.getElementById('ext-publisher').textContent = localBook.publisher || 'N/A';
       document.getElementById('ext-rack').textContent = localBook.rackLocation;
@@ -80,48 +88,58 @@ async function handleScannedISBN(rawISBN) {
       
       modalExisting.classList.remove('hidden');
     } else {
-      // 2. Search online metadata APIs
-      const meta = await MetadataFetcher.fetchBookInfo(isbn);
-      
-      document.getElementById('nb-isbn').value = isbn;
-      document.getElementById('nb-title').value = meta.title || '';
-      document.getElementById('nb-publisher').value = meta.publisher || '';
-      document.getElementById('nb-rack').value = StorageManager.getLastRack();
-      document.getElementById('nb-category').value = '';
-      document.getElementById('nb-price').value = '';
-      document.getElementById('nb-qty').value = 1;
-
-      showSection('new');
+      // 2. Prompt user to select Item Type (Book vs Stationery)
+      pendingBarcode = isbn;
+      modalItemType.classList.remove('hidden');
     }
   } catch (err) {
     console.error('Workflow Error:', err);
-    alert('Error processing ISBN: ' + err.message);
+    alert('Error processing barcode: ' + err.message);
   }
 }
 
+// Item Type Modal Handlers
+document.getElementById('btn-type-book').addEventListener('click', async () => {
+  modalItemType.classList.add('hidden');
+  const meta = await MetadataFetcher.fetchBookInfo(pendingBarcode);
+  
+  document.getElementById('nb-isbn').value = pendingBarcode;
+  document.getElementById('nb-title').value = meta.title || '';
+  document.getElementById('nb-publisher').value = meta.publisher || '';
+  document.getElementById('nb-rack').value = StorageManager.getLastRack();
+  document.getElementById('nb-category').value = '';
+  document.getElementById('nb-price').value = '';
+  document.getElementById('nb-qty').value = 1;
+
+  showSection('new-book');
+});
+
+document.getElementById('btn-type-stationery').addEventListener('click', () => {
+  modalItemType.classList.add('hidden');
+  
+  document.getElementById('ns-barcode').value = pendingBarcode;
+  document.getElementById('ns-name').value = '';
+  document.getElementById('ns-supplier').value = '';
+  document.getElementById('ns-rack').value = StorageManager.getLastRack();
+  document.getElementById('ns-price').value = '';
+  document.getElementById('ns-qty').value = 1;
+
+  showSection('new-stationery');
+});
+
 function cleanISBN(isbn) {
-  return isbn.replace(/[^0-9X]/gi, '');
+  return isbn.replace(/[^0-9Xa-zA-Z]/gi, '');
 }
 
-// Google Search Helper Button (Bypasses Mobile Pop-up Blockers)
+// Google Search Helper Button
 document.getElementById('btn-search-google').addEventListener('click', () => {
   const isbn = document.getElementById('nb-isbn').value;
-  
   if (!isbn) {
     alert('No ISBN found to search.');
     return;
   }
-
   const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(isbn + ' site:my OR popular OR mph')}`;
-
-  // Create a temporary standard link element to bypass browser pop-up blockers
-  const link = document.createElement('a');
-  link.href = searchUrl;
-  link.target = '_blank';
-  link.rel = 'noopener noreferrer';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  window.open(searchUrl, '_blank');
 });
 
 // Add Quantity to Existing Record
@@ -149,6 +167,7 @@ document.getElementById('form-new-book').addEventListener('submit', async (e) =>
 
   const rack = document.getElementById('nb-rack').value.trim();
   const book = {
+    itemType: 'Book',
     isbn: document.getElementById('nb-isbn').value,
     title: document.getElementById('nb-title').value.trim(),
     publisher: document.getElementById('nb-publisher').value.trim(),
@@ -165,7 +184,34 @@ document.getElementById('form-new-book').addEventListener('submit', async (e) =>
   showSection('scan');
 });
 
-document.getElementById('btn-cancel-new').addEventListener('click', () => {
+document.getElementById('btn-cancel-new-book').addEventListener('click', () => {
+  showSection('scan');
+});
+
+// Save New Stationery
+document.getElementById('form-new-stationery').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const rack = document.getElementById('ns-rack').value.trim();
+  const stationery = {
+    itemType: 'Stationery',
+    isbn: document.getElementById('ns-barcode').value,
+    title: document.getElementById('ns-name').value.trim(),
+    publisher: document.getElementById('ns-supplier').value.trim(),
+    rackLocation: rack,
+    bookCategory: 'Stationery',
+    sellingPrice: parseFloat(document.getElementById('ns-price').value),
+    quantity: parseInt(document.getElementById('ns-qty').value, 10)
+  };
+
+  await StorageManager.saveBook(stationery);
+  StorageManager.setLastRack(rack);
+
+  alert('Stationery item saved successfully!');
+  showSection('scan');
+});
+
+document.getElementById('btn-cancel-new-stat').addEventListener('click', () => {
   showSection('scan');
 });
 
@@ -184,7 +230,7 @@ function populateDropdowns(books) {
   const pubs = [...new Set(books.map(b => b.publisher).filter(Boolean))].sort();
 
   rackSelect.innerHTML = '<option value="">All Racks</option>' + racks.map(r => `<option value="${r}">${r}</option>`).join('');
-  pubSelect.innerHTML = '<option value="">All Publishers</option>' + pubs.map(p => `<option value="${p}">${p}</option>`).join('');
+  pubSelect.innerHTML = '<option value="">All Publishers/Suppliers</option>' + pubs.map(p => `<option value="${p}">${p}</option>`).join('');
 }
 
 ['inv-search', 'filter-rack', 'filter-publisher', 'filter-category'].forEach(id => {
@@ -203,7 +249,7 @@ function filterAndRender(books) {
   filteredBooksList = books.filter(b => {
     const matchesSearch = b.isbn.toLowerCase().includes(query) ||
                           b.title.toLowerCase().includes(query) ||
-                          b.publisher.toLowerCase().includes(query) ||
+                          (b.publisher && b.publisher.toLowerCase().includes(query)) ||
                           b.rackLocation.toLowerCase().includes(query) ||
                           b.bookCategory.toLowerCase().includes(query);
 
@@ -212,6 +258,17 @@ function filterAndRender(books) {
     const matchesCat = !catFilter || b.bookCategory === catFilter;
 
     return matchesSearch && matchesRack && matchesPub && matchesCat;
+  });
+
+  // Sort inventory: Category -> Rack -> Title
+  filteredBooksList.sort((a, b) => {
+    if (a.bookCategory !== b.bookCategory) {
+      return a.bookCategory.localeCompare(b.bookCategory);
+    }
+    if (a.rackLocation !== b.rackLocation) {
+      return a.rackLocation.localeCompare(b.rackLocation);
+    }
+    return a.title.localeCompare(b.title);
   });
 
   renderTable(filteredBooksList);
@@ -244,17 +301,22 @@ function updateSummaryCards(books) {
   document.getElementById('stat-stock').textContent = books.reduce((acc, b) => acc + b.quantity, 0);
   document.getElementById('stat-edu').textContent = books.filter(b => b.bookCategory === 'Educational Books').length;
   document.getElementById('stat-comics').textContent = books.filter(b => b.bookCategory === 'Novel / Comic' || b.bookCategory === 'Comics').length;
+  document.getElementById('stat-stationery').textContent = books.filter(b => b.bookCategory === 'Stationery').length;
 }
 
-// Edit Book Callback
+// Edit Item Callback
 window.editBook = async (isbn) => {
   const book = await StorageManager.getBook(isbn);
   if (!book) return;
 
-  const newTitle = prompt('Edit Title:', book.title);
+  const isStat = book.bookCategory === 'Stationery';
+  const labelTitle = isStat ? 'Edit Item Name:' : 'Edit Book Title:';
+  const labelPub = isStat ? 'Edit Supplier:' : 'Edit Publisher:';
+
+  const newTitle = prompt(labelTitle, book.title);
   if (newTitle === null) return;
 
-  const newPublisher = prompt('Edit Publisher:', book.publisher);
+  const newPublisher = prompt(labelPub, book.publisher || '');
   if (newPublisher === null) return;
 
   const newRack = prompt('Edit Rack Location:', book.rackLocation);
@@ -276,12 +338,12 @@ window.editBook = async (isbn) => {
   loadInventory();
 };
 
-// Delete Book Callback
+// Delete Item Callback
 window.deleteBook = async (isbn, title) => {
-  const confirmed = confirm(`Are you sure you want to delete "${title}" (ISBN: ${isbn}) from inventory?`);
+  const confirmed = confirm(`Are you sure you want to delete "${title}" (Barcode: ${isbn}) from inventory?`);
   if (confirmed) {
     await StorageManager.deleteBook(isbn);
-    alert('Book deleted successfully.');
+    alert('Item deleted successfully.');
     loadInventory();
   }
 };
@@ -289,6 +351,7 @@ window.deleteBook = async (isbn, title) => {
 // CSV Export Logic
 document.getElementById('btn-export-all').addEventListener('click', async () => {
   const allBooks = await StorageManager.getAllBooks();
+  allBooks.sort((a, b) => a.bookCategory.localeCompare(b.bookCategory));
   exportCSV(allBooks, 'entire_inventory.csv');
 });
 
@@ -297,11 +360,11 @@ document.getElementById('btn-export-filtered').addEventListener('click', () => {
 });
 
 function exportCSV(books, filename) {
-  const headers = ['Rack Location', 'Book Category', 'Publisher', 'ISBN', 'Book Title', 'Qty Available', 'Selling Price (RM)'];
+  const headers = ['Rack Location', 'Category', 'Publisher / Supplier', 'Barcode / ISBN', 'Title / Item Name', 'Qty Available', 'Selling Price (RM)'];
   const rows = books.map(b => [
     `"${b.rackLocation}"`,
     `"${b.bookCategory}"`,
-    `"${b.publisher}"`,
+    `"${b.publisher || ''}"`,
     `"${b.isbn}"`,
     `"${b.title.replace(/"/g, '""')}"`,
     b.quantity,
@@ -317,4 +380,3 @@ function exportCSV(books, filename) {
   link.click();
   document.body.removeChild(link);
 }
-
