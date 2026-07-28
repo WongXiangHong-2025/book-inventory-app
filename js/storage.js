@@ -1,32 +1,26 @@
-const DB_NAME = 'BookInventoryDB';
+const DB_NAME = 'BookstoreInventoryDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'books';
+const LAST_RACK_KEY = 'last_used_rack';
 
 class StorageManager {
   static openDB() {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
-      request.onupgradeneeded = (e) => {
-        const db = e.target.result;
+
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
         if (!db.objectStoreNames.contains(STORE_NAME)) {
           const store = db.createObjectStore(STORE_NAME, { keyPath: 'isbn' });
+          store.createIndex('title', 'title', { unique: false });
           store.createIndex('rackLocation', 'rackLocation', { unique: false });
-          store.createIndex('publisher', 'publisher', { unique: false });
           store.createIndex('bookCategory', 'bookCategory', { unique: false });
+          store.createIndex('publisher', 'publisher', { unique: false });
         }
       };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-  }
 
-  static async getBook(isbn) {
-    const db = await this.openDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction(STORE_NAME, 'readonly');
-      const store = tx.objectStore(STORE_NAME);
-      const req = store.get(isbn);
-      req.onsuccess = () => resolve(req.result || null);
+      request.onsuccess = (event) => resolve(event.target.result);
+      request.onerror = (event) => reject(event.target.error);
     });
   }
 
@@ -35,9 +29,34 @@ class StorageManager {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
-      const req = store.put(book);
-      req.onsuccess = () => resolve(true);
-      req.onerror = () => reject(req.error);
+      const request = store.put(book);
+
+      request.onsuccess = () => resolve(true);
+      request.onerror = (event) => reject(event.target.error);
+    });
+  }
+
+  static async getBook(isbn) {
+    const db = await this.openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.get(isbn);
+
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = (event) => reject(event.target.error);
+    });
+  }
+
+  static async getAllBooks() {
+    const db = await this.openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.getAll();
+
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = (event) => reject(event.target.error);
     });
   }
 
@@ -46,27 +65,20 @@ class StorageManager {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
-      const req = store.delete(isbn);
-      req.onsuccess = () => resolve(true);
-      req.onerror = () => reject(req.error);
-    });
-  }
+      const request = store.delete(isbn);
 
-  static async getAllBooks() {
-    const db = await this.openDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction(STORE_NAME, 'readonly');
-      const store = tx.objectStore(STORE_NAME);
-      const req = store.getAll();
-      req.onsuccess = () => resolve(req.result || []);
+      request.onsuccess = () => resolve(true);
+      request.onerror = (event) => reject(event.target.error);
     });
   }
 
   static getLastRack() {
-    return localStorage.getItem('last_used_rack') || '';
+    return localStorage.getItem(LAST_RACK_KEY) || '';
   }
 
   static setLastRack(rack) {
-    localStorage.setItem('last_used_rack', rack);
+    if (rack) {
+      localStorage.setItem(LAST_RACK_KEY, rack);
+    }
   }
 }
