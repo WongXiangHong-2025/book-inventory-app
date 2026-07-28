@@ -2,14 +2,26 @@ class BarcodeScanner {
   constructor(videoElementId, onScanSuccess) {
     this.videoElement = document.getElementById(videoElementId);
     this.onScanSuccess = onScanSuccess;
-    this.codeReader = new ZXing.BrowserMultiFormatReader();
+    
+    // 1. Limit scan formats to retail barcodes to speed up ZXing CPU processing
+    const hints = new Map();
+    const formats = [
+      ZXing.BarcodeFormat.EAN_13,
+      ZXing.BarcodeFormat.EAN_8,
+      ZXing.BarcodeFormat.CODE_128,
+      ZXing.BarcodeFormat.UPC_A,
+      ZXing.BarcodeFormat.UPC_E,
+      ZXing.BarcodeFormat.QR_CODE
+    ];
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+
+    this.codeReader = new ZXing.BrowserMultiFormatReader(hints);
     this.isScanning = false;
   }
 
   async start() {
     if (this.isScanning) return;
 
-    // 1. Reset any existing stream connections
     this.stop();
 
     const overlay = document.getElementById('scanner-overlay');
@@ -18,42 +30,43 @@ class BarcodeScanner {
     try {
       this.isScanning = true;
 
-      // 2. Ensure video element has proper inline attributes
       if (this.videoElement) {
         this.videoElement.setAttribute('playsinline', 'true');
         this.videoElement.setAttribute('webkit-playsinline', 'true');
         this.videoElement.muted = true;
       }
 
-      // 3. Android Chrome camera resolution and auto-focus constraints
+      // 2. High frame rate (30fps) and focused resolution for fast decoding
       const constraints = {
         video: {
           facingMode: { ideal: 'environment' },
-          width: { min: 640, ideal: 1280, max: 1920 },
-          height: { min: 480, ideal: 720, max: 1080 },
+          width: { ideal: 1280, min: 640 },
+          height: { ideal: 720, min: 480 },
+          frameRate: { ideal: 30, min: 15 },
           focusMode: { ideal: 'continuous' }
         }
       };
 
-      // 4. Start decoding video stream
       await this.codeReader.decodeFromConstraints(
         constraints,
         this.videoElement,
         (result, err) => {
           if (result && this.isScanning) {
             this.stop();
+            // Provide instant haptic feedback on supported Android devices
+            if (navigator.vibrate) {
+              navigator.vibrate(100);
+            }
             this.onScanSuccess(result.getText());
           }
         }
       );
     } catch (err) {
-      console.error('Camera stream error:', err);
-      // Fallback for devices that reject strict constraints
+      console.error('Fast scan constraint error:', err);
       this.startFallback();
     }
   }
 
-  // Fallback stream for older Android devices or strict browser permissions
   async startFallback() {
     try {
       await this.codeReader.decodeFromConstraints(
@@ -62,13 +75,16 @@ class BarcodeScanner {
         (result, err) => {
           if (result && this.isScanning) {
             this.stop();
+            if (navigator.vibrate) {
+              navigator.vibrate(100);
+            }
             this.onScanSuccess(result.getText());
           }
         }
       );
     } catch (fallbackErr) {
-      console.error('Fallback camera error:', fallbackErr);
-      alert('Unable to access camera on Chrome. Please ensure camera permissions are allowed in site settings.');
+      console.error('Fallback scan error:', fallbackErr);
+      alert('Unable to access camera.');
       this.stop();
     }
   }
@@ -76,7 +92,6 @@ class BarcodeScanner {
   stop() {
     this.isScanning = false;
 
-    // Release camera tracks cleanly
     if (this.videoElement && this.videoElement.srcObject) {
       const stream = this.videoElement.srcObject;
       if (stream.getTracks) {
