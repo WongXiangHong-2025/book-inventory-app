@@ -9,7 +9,7 @@ class BarcodeScanner {
   async start() {
     if (this.isScanning) return;
 
-    // 1. Force stop and release any existing camera stream (Crucial for iOS WebKit)
+    // 1. Reset any existing stream connections
     this.stop();
 
     const overlay = document.getElementById('scanner-overlay');
@@ -18,21 +18,24 @@ class BarcodeScanner {
     try {
       this.isScanning = true;
 
-      // 2. iOS & Android cross-compatible camera constraints
-      const constraints = {
-        video: {
-          facingMode: { ideal: 'environment' }
-        }
-      };
-
-      // 3. Ensure iOS inline playback attributes are set on the video tag
+      // 2. Ensure video element has proper inline attributes
       if (this.videoElement) {
         this.videoElement.setAttribute('playsinline', 'true');
         this.videoElement.setAttribute('webkit-playsinline', 'true');
         this.videoElement.muted = true;
       }
 
-      // 4. Start stream decoding across devices
+      // 3. Android Chrome camera resolution and auto-focus constraints
+      const constraints = {
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { min: 640, ideal: 1280, max: 1920 },
+          height: { min: 480, ideal: 720, max: 1080 },
+          focusMode: { ideal: 'continuous' }
+        }
+      };
+
+      // 4. Start decoding video stream
       await this.codeReader.decodeFromConstraints(
         constraints,
         this.videoElement,
@@ -45,7 +48,27 @@ class BarcodeScanner {
       );
     } catch (err) {
       console.error('Camera stream error:', err);
-      alert('Camera access failed.\n\n• On iPhone: Make sure camera access is allowed in Settings > Chrome/Safari > Camera.\n• Try opening the link in Safari on iOS if issue persists.');
+      // Fallback for devices that reject strict constraints
+      this.startFallback();
+    }
+  }
+
+  // Fallback stream for older Android devices or strict browser permissions
+  async startFallback() {
+    try {
+      await this.codeReader.decodeFromConstraints(
+        { video: { facingMode: 'environment' } },
+        this.videoElement,
+        (result, err) => {
+          if (result && this.isScanning) {
+            this.stop();
+            this.onScanSuccess(result.getText());
+          }
+        }
+      );
+    } catch (fallbackErr) {
+      console.error('Fallback camera error:', fallbackErr);
+      alert('Unable to access camera on Chrome. Please ensure camera permissions are allowed in site settings.');
       this.stop();
     }
   }
@@ -53,7 +76,7 @@ class BarcodeScanner {
   stop() {
     this.isScanning = false;
 
-    // Explicitly stop all hardware media tracks to unlock camera on iOS & Android
+    // Release camera tracks cleanly
     if (this.videoElement && this.videoElement.srcObject) {
       const stream = this.videoElement.srcObject;
       if (stream.getTracks) {
