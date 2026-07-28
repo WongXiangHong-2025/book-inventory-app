@@ -3,7 +3,7 @@ class BarcodeScanner {
     this.videoElement = document.getElementById(videoElementId);
     this.onScanSuccess = onScanSuccess;
     
-    // 1. Limit scan formats to retail barcodes to speed up ZXing CPU processing
+    // Target retail formats for maximum scanning speed
     const hints = new Map();
     const formats = [
       ZXing.BarcodeFormat.EAN_13,
@@ -30,13 +30,14 @@ class BarcodeScanner {
     try {
       this.isScanning = true;
 
+      // Ensure iOS WebKit playback compatibility
       if (this.videoElement) {
         this.videoElement.setAttribute('playsinline', 'true');
         this.videoElement.setAttribute('webkit-playsinline', 'true');
         this.videoElement.muted = true;
       }
 
-      // 2. High frame rate (30fps) and focused resolution for fast decoding
+      // Hardware video constraints tuned for Android Chrome & iOS
       const constraints = {
         video: {
           facingMode: { ideal: 'environment' },
@@ -53,7 +54,6 @@ class BarcodeScanner {
         (result, err) => {
           if (result && this.isScanning) {
             this.stop();
-            // Provide instant haptic feedback on supported Android devices
             if (navigator.vibrate) {
               navigator.vibrate(100);
             }
@@ -92,6 +92,7 @@ class BarcodeScanner {
   stop() {
     this.isScanning = false;
 
+    // Fully release media tracks to unlock camera hardware
     if (this.videoElement && this.videoElement.srcObject) {
       const stream = this.videoElement.srcObject;
       if (stream.getTracks) {
