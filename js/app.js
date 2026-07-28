@@ -72,7 +72,6 @@ async function handleScannedISBN(rawISBN) {
   manualIsbnInput.value = '';
 
   try {
-    // 1. Search LOCAL inventory FIRST
     const localBook = await StorageManager.getBook(isbn);
 
     if (localBook) {
@@ -88,7 +87,6 @@ async function handleScannedISBN(rawISBN) {
       
       modalExisting.classList.remove('hidden');
     } else {
-      // 2. Prompt user to select Item Type (Book vs Stationery)
       pendingBarcode = isbn;
       modalItemType.classList.remove('hidden');
     }
@@ -98,9 +96,22 @@ async function handleScannedISBN(rawISBN) {
   }
 }
 
-// Item Type Modal Handlers
+// Dynamic Publisher/Supplier suggestions populate
+async function updatePublisherSuggestions() {
+  const allBooks = await StorageManager.getAllBooks();
+  const publishers = [...new Set(allBooks.map(b => b.publisher).filter(Boolean))].sort();
+  
+  const datalist = document.getElementById('publisher-suggestions');
+  if (datalist) {
+    datalist.innerHTML = publishers.map(pub => `<option value="${pub}">`).join('');
+  }
+}
+
+// Item Type Selection Handlers
 document.getElementById('btn-type-book').addEventListener('click', async () => {
   modalItemType.classList.add('hidden');
+  await updatePublisherSuggestions();
+
   const meta = await MetadataFetcher.fetchBookInfo(pendingBarcode);
   
   document.getElementById('nb-isbn').value = pendingBarcode;
@@ -114,9 +125,10 @@ document.getElementById('btn-type-book').addEventListener('click', async () => {
   showSection('new-book');
 });
 
-document.getElementById('btn-type-stationery').addEventListener('click', () => {
+document.getElementById('btn-type-stationery').addEventListener('click', async () => {
   modalItemType.classList.add('hidden');
-  
+  await updatePublisherSuggestions();
+
   document.getElementById('ns-barcode').value = pendingBarcode;
   document.getElementById('ns-name').value = '';
   document.getElementById('ns-supplier').value = '';
@@ -131,7 +143,7 @@ function cleanISBN(isbn) {
   return isbn.replace(/[^0-9Xa-zA-Z]/gi, '');
 }
 
-// Google Search Helper Button
+// Google Search Helper
 document.getElementById('btn-search-google').addEventListener('click', () => {
   const isbn = document.getElementById('nb-isbn').value;
   if (!isbn) {
@@ -142,7 +154,7 @@ document.getElementById('btn-search-google').addEventListener('click', () => {
   window.open(searchUrl, '_blank');
 });
 
-// Add Quantity to Existing Record
+// Existing Quantity increment
 document.getElementById('btn-confirm-add').addEventListener('click', async () => {
   const addQty = parseInt(document.getElementById('add-qty-input').value, 10);
   if (isNaN(addQty) || addQty < 1) {
@@ -161,7 +173,7 @@ document.getElementById('btn-cancel-add').addEventListener('click', () => {
   modalExisting.classList.add('hidden');
 });
 
-// Save New Book
+// Save Book
 document.getElementById('form-new-book').addEventListener('submit', async (e) => {
   e.preventDefault();
 
@@ -188,7 +200,7 @@ document.getElementById('btn-cancel-new-book').addEventListener('click', () => {
   showSection('scan');
 });
 
-// Save New Stationery
+// Save Stationery
 document.getElementById('form-new-stationery').addEventListener('submit', async (e) => {
   e.preventDefault();
 
@@ -215,7 +227,7 @@ document.getElementById('btn-cancel-new-stat').addEventListener('click', () => {
   showSection('scan');
 });
 
-// Load and Render Inventory
+// Inventory Table and Filters
 async function loadInventory() {
   const allBooks = await StorageManager.getAllBooks();
   populateDropdowns(allBooks);
@@ -260,7 +272,6 @@ function filterAndRender(books) {
     return matchesSearch && matchesRack && matchesPub && matchesCat;
   });
 
-  // Sort inventory: Category -> Rack -> Title
   filteredBooksList.sort((a, b) => {
     if (a.bookCategory !== b.bookCategory) {
       return a.bookCategory.localeCompare(b.bookCategory);
@@ -304,7 +315,7 @@ function updateSummaryCards(books) {
   document.getElementById('stat-stationery').textContent = books.filter(b => b.bookCategory === 'Stationery').length;
 }
 
-// Edit Item Callback
+// Edit Item
 window.editBook = async (isbn) => {
   const book = await StorageManager.getBook(isbn);
   if (!book) return;
@@ -338,7 +349,7 @@ window.editBook = async (isbn) => {
   loadInventory();
 };
 
-// Delete Item Callback
+// Delete Item
 window.deleteBook = async (isbn, title) => {
   const confirmed = confirm(`Are you sure you want to delete "${title}" (Barcode: ${isbn}) from inventory?`);
   if (confirmed) {
@@ -348,7 +359,7 @@ window.deleteBook = async (isbn, title) => {
   }
 };
 
-// CSV Export Logic
+// CSV Export
 document.getElementById('btn-export-all').addEventListener('click', async () => {
   const allBooks = await StorageManager.getAllBooks();
   allBooks.sort((a, b) => a.bookCategory.localeCompare(b.bookCategory));
