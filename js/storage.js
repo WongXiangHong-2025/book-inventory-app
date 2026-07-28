@@ -1,5 +1,5 @@
 const DB_NAME = 'BookstoreInventoryDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Incremented version to update store schema
 const STORE_NAME = 'books';
 const LAST_RACK_KEY = 'last_used_rack';
 
@@ -10,13 +10,19 @@ class StorageManager {
 
       request.onupgradeneeded = (event) => {
         const db = event.target.result;
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-          const store = db.createObjectStore(STORE_NAME, { keyPath: 'isbn' });
-          store.createIndex('title', 'title', { unique: false });
-          store.createIndex('rackLocation', 'rackLocation', { unique: false });
-          store.createIndex('bookCategory', 'bookCategory', { unique: false });
-          store.createIndex('publisher', 'publisher', { unique: false });
+        
+        // If updating from version 1, remove the old store using isbn primary key
+        if (db.objectStoreNames.contains(STORE_NAME)) {
+          db.deleteObjectStore(STORE_NAME);
         }
+
+        // New object store with auto-incrementing ID primary key
+        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+        store.createIndex('isbn', 'isbn', { unique: false }); // Non-unique barcode index
+        store.createIndex('title', 'title', { unique: false });
+        store.createIndex('rackLocation', 'rackLocation', { unique: false });
+        store.createIndex('bookCategory', 'bookCategory', { unique: false });
+        store.createIndex('publisher', 'publisher', { unique: false });
       };
 
       request.onsuccess = (event) => resolve(event.target.result);
@@ -31,17 +37,32 @@ class StorageManager {
       const store = tx.objectStore(STORE_NAME);
       const request = store.put(book);
 
-      request.onsuccess = () => resolve(true);
+      request.onsuccess = () => resolve(request.result);
       request.onerror = (event) => reject(event.target.error);
     });
   }
 
-  static async getBook(isbn) {
+  // Gets ALL items that match a specific barcode/ISBN
+  static async getBooksByBarcode(isbn) {
+    if (!isbn) return [];
     const db = await this.openDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const store = tx.objectStore(STORE_NAME);
-      const request = store.get(isbn);
+      const index = store.index('isbn');
+      const request = index.getAll(isbn);
+
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = (event) => reject(event.target.error);
+    });
+  }
+
+  static async getBookById(id) {
+    const db = await this.openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.get(id);
 
       request.onsuccess = () => resolve(request.result || null);
       request.onerror = (event) => reject(event.target.error);
@@ -60,12 +81,12 @@ class StorageManager {
     });
   }
 
-  static async deleteBook(isbn) {
+  static async deleteBook(id) {
     const db = await this.openDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
-      const request = store.delete(isbn);
+      const request = store.delete(id);
 
       request.onsuccess = () => resolve(true);
       request.onerror = (event) => reject(event.target.error);
