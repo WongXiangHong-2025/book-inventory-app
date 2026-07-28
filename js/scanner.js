@@ -1,110 +1,52 @@
-class BarcodeScanner {
-  constructor(videoElementId, onScanCallback) {
-    this.videoElement = document.getElementById(videoElementId);
-    this.overlayElement = document.getElementById('scanner-overlay');
-    this.onScanCallback = onScanCallback;
-    this.isScanning = false;
-    this.stream = null;
-    this.animationFrameId = null;
 
-    this.hasNativeSupport = 'BarcodeDetector' in window;
-    if (this.hasNativeSupport) {
-      this.nativeDetector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a'] });
-    } else {
-      const hints = new Map();
-      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-        ZXing.BarcodeFormat.EAN_13,
-        ZXing.BarcodeFormat.EAN_8,
-        ZXing.BarcodeFormat.UPC_A
-      ]);
-      this.codeReader = new ZXing.BrowserMultiFormatReader(hints, 100);
-    }
+class BarcodeScanner {
+  constructor(videoElementId, onScanSuccess) {
+    this.videoElement = document.getElementById(videoElementId);
+    this.onScanSuccess = onScanSuccess;
+    this.codeReader = new ZXing.BrowserMultiFormatReader();
+    this.isScanning = false;
   }
 
   async start() {
     if (this.isScanning) return;
-    this.isScanning = true;
+
+    const overlay = document.getElementById('scanner-overlay');
+    if (overlay) overlay.classList.remove('hidden');
 
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({
+      // iOS WebKit compatible camera constraints
+      const constraints = {
         video: {
           facingMode: { ideal: 'environment' },
           width: { ideal: 1280 },
-          height: { ideal: 720 },
-          focusMode: { ideal: 'continuous' }
+          height: { ideal: 720 }
         }
-      });
+      };
 
-      this.videoElement.srcObject = this.stream;
-      await this.videoElement.play();
+      this.isScanning = true;
 
-      if (this.overlayElement) {
-        this.overlayElement.classList.remove('hidden');
-      }
-
-      if (this.hasNativeSupport) {
-        this.scanNativeLoop();
-      } else {
-        this.scanZXing();
-      }
+      // Start decoding from video device with fallback
+      await this.codeReader.decodeFromConstraints(
+        constraints,
+        this.videoElement,
+        (result, err) => {
+          if (result && this.isScanning) {
+            this.stop();
+            this.onScanSuccess(result.getText());
+          }
+        }
+      );
     } catch (err) {
-      console.error('Camera Scanner Error:', err);
-      this.isScanning = false;
-      alert('Unable to start camera. Please ensure HTTPS and permissions are allowed.');
+      console.error('Camera access error:', err);
+      alert('Unable to access camera. On iPhone, please try opening this app in Safari or check iOS Settings > Chrome > Camera permissions.');
+      this.stop();
     }
-  }
-
-  async scanNativeLoop() {
-    if (!this.isScanning) return;
-
-    try {
-      const barcodes = await this.nativeDetector.detect(this.videoElement);
-      if (barcodes.length > 0 && this.isScanning) {
-        this.isScanning = false;
-        const text = barcodes[0].rawValue;
-        this.stop();
-        this.onScanCallback(text);
-        return;
-      }
-    } catch (e) {}
-
-    if (this.isScanning) {
-      this.animationFrameId = requestAnimationFrame(() => this.scanNativeLoop());
-    }
-  }
-
-  scanZXing() {
-    this.codeReader.decodeFromVideoElement(this.videoElement, (result, err) => {
-      if (result && this.isScanning) {
-        this.isScanning = false;
-        const text = result.getText();
-        this.stop();
-        this.onScanCallback(text);
-      }
-    });
   }
 
   stop() {
     this.isScanning = false;
-
-    if (this.overlayElement) {
-      this.overlayElement.classList.add('hidden');
-    }
-
-    if (this.animationFrameId) {
-      cancelAnimationFrame(this.animationFrameId);
-      this.animationFrameId = null;
-    }
-
-    if (this.stream) {
-      this.stream.getTracks().forEach(track => track.stop());
-      this.stream = null;
-    }
-
-    if (this.codeReader) {
-      try {
-        this.codeReader.reset();
-      } catch (e) {}
-    }
+    this.codeReader.reset();
+    const overlay = document.getElementById('scanner-overlay');
+    if (overlay) overlay.classList.add('hidden');
   }
 }
