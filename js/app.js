@@ -720,23 +720,6 @@ document.getElementById('btn-print-stationery-suppliers').addEventListener('clic
   openSupplierPrintSheets(groups);
 });
 
-// Direct PDF Export Event Listener
-document.getElementById('btn-download-stationery-pdf').addEventListener('click', async () => {
-  const allBooks = await StorageManager.getAllBooks();
-  const selectedSupplier = document.getElementById('filter-publisher').value;
-  const sourceItems = selectedSupplier
-    ? getStationeryItemsForSupplier(allBooks, selectedSupplier)
-    : allBooks;
-  const groups = groupStationeryBySupplier(sourceItems);
-
-  if (!groups.length) {
-    alert('No stationery items found to export PDF.');
-    return;
-  }
-
-  downloadSupplierPDF(groups, selectedSupplier);
-});
-
 function exportXLSX(books, filename) {
   if (typeof XLSX === 'undefined') {
     alert('Excel library not loaded. Please check your internet connection and try again.');
@@ -763,75 +746,6 @@ function exportXLSX(books, filename) {
   worksheet['!cols'] = colWidths;
 
   XLSX.writeFile(workbook, filename);
-}
-
-function downloadSupplierPDF(groups, selectedSupplier) {
-  if (typeof html2pdf === 'undefined') {
-    alert('PDF library not loaded. Please check your internet connection.');
-    return;
-  }
-
-  const generatedDate = new Date().toLocaleDateString();
-
-  const container = document.createElement('div');
-  container.style.padding = '12px';
-  container.style.fontFamily = 'Arial, sans-serif';
-  container.style.color = '#111827';
-
-  container.innerHTML = groups.map(([supplier, items]) => {
-    const rows = items.map(item => `
-      <tr>
-        <td style="border: 1px solid #9ca3af; padding: 6px;">${escapeHTML(item.rackLocation)}</td>
-        <td style="border: 1px solid #9ca3af; padding: 6px;">${escapeHTML(item.title)}</td>
-        <td style="border: 1px solid #9ca3af; padding: 6px;">${escapeHTML(item.publisher || '')}</td>
-        <td style="border: 1px solid #9ca3af; padding: 6px;">${escapeHTML(item.isbn)}</td>
-        <td style="border: 1px solid #9ca3af; padding: 6px;">${escapeHTML(item.quantity)}</td>
-        <td style="border: 1px solid #9ca3af; padding: 6px;">${formatPrice(item.sellingPrice)}</td>
-      </tr>
-    `).join('');
-
-    return `
-      <section style="page-break-after: always; padding-bottom: 20px;">
-        <header style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px;">
-          <div>
-            <strong style="font-size: 11px; text-transform: uppercase; color: #4b5563;">Supplier</strong>
-            <h1 style="margin: 4px 0 0; font-size: 20px;">${escapeHTML(supplier)}</h1>
-          </div>
-          <div>
-            <strong style="font-size: 11px; text-transform: uppercase; color: #4b5563;">Date</strong>
-            <p style="margin: 4px 0 0; font-size: 13px;">${escapeHTML(generatedDate)}</p>
-          </div>
-        </header>
-        <table style="width: 100%; border-collapse: collapse; font-size: 11px; text-align: left;">
-          <thead>
-            <tr style="background-color: #f3f4f6;">
-              <th style="border: 1px solid #9ca3af; padding: 6px;">Location</th>
-              <th style="border: 1px solid #9ca3af; padding: 6px;">Item</th>
-              <th style="border: 1px solid #9ca3af; padding: 6px;">Supplier</th>
-              <th style="border: 1px solid #9ca3af; padding: 6px;">Stationery Code</th>
-              <th style="border: 1px solid #9ca3af; padding: 6px;">Qty</th>
-              <th style="border: 1px solid #9ca3af; padding: 6px;">Selling Price</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </section>
-    `;
-  }).join('');
-
-  const filename = selectedSupplier 
-    ? `stationery_sheet_${safeFilename(selectedSupplier)}.pdf`
-    : 'stationery_supplier_sheets.pdf';
-
-  const opt = {
-    margin:       10,
-    filename:     filename,
-    image:        { type: 'jpeg', quality: 0.98 },
-    html2canvas:  { scale: 2 },
-    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-  };
-
-  html2pdf().set(opt).from(container).save();
 }
 
 function groupStationeryBySupplier(books) {
