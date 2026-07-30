@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#1e293b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="SBC Inventory">
-  <link rel="manifest" href="./manifest.webmanifest?v=7">
-  <link rel="stylesheet" href="./css/styles.css?v=7">
+  <link rel="manifest" href="./manifest.webmanifest?v=8">
+  <link rel="stylesheet" href="./css/styles.css?v=8">
   <script src="https://unpkg.com/@zxing/library@latest"></script>
 </head>
 <body>
@@ -242,10 +242,10 @@
   <!-- SheetJS Library for XLSX Exports -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
-  <script src="./js/storage.js?v=7"></script>
-  <script src="./js/metadata.js?v=7"></script>
-  <script src="./js/scanner.js?v=7"></script>
-  <script src="./js/app.js?v=7"></script>
+  <script src="./js/storage.js?v=8"></script>
+  <script src="./js/metadata.js?v=8"></script>
+  <script src="./js/scanner.js?v=8"></script>
+  <script src="./js/app.js?v=8"></script>
   <script>
     if ('serviceWorker' in navigator) {
       let refreshing = false;
@@ -256,7 +256,7 @@
       });
 
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js?v=7')
+        navigator.serviceWorker.register('./service-worker.js?v=8')
           .then((registration) => registration.update());
       });
     }
