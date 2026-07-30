@@ -1,13 +1,13 @@
-const CACHE_NAME = 'sbc-inventory-v7';
+const CACHE_NAME = 'sbc-inventory-v8';
 const APP_ASSETS = [
   './',
   './index.html',
-  './manifest.webmanifest?v=7',
-  './css/styles.css?v=7',
-  './js/storage.js?v=7',
-  './js/metadata.js?v=7',
-  './js/scanner.js?v=7',
-  './js/app.js?v=7',
+  './manifest.webmanifest?v=8',
+  './css/styles.css?v=8',
+  './js/storage.js?v=8',
+  './js/metadata.js?v=8',
+  './js/scanner.js?v=8',
+  './js/app.js?v=8',
   './icons/icon.svg',
   'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'
 ];
