@@ -1,15 +1,16 @@
-const CACHE_NAME = 'sbc-inventory-v8';
+const CACHE_NAME = 'sbc-inventory-v9';
 const APP_ASSETS = [
   './',
   './index.html',
-  './manifest.webmanifest?v=8',
-  './css/styles.css?v=8',
-  './js/storage.js?v=8',
-  './js/metadata.js?v=8',
-  './js/scanner.js?v=8',
-  './js/app.js?v=8',
+  './manifest.webmanifest?v=9',
+  './css/styles.css?v=9',
+  './js/storage.js?v=9',
+  './js/metadata.js?v=9',
+  './js/scanner.js?v=9',
+  './js/app.js?v=9',
   './icons/icon.svg',
-  'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'
+  'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'
 ];
 
 self.addEventListener('install', (event) => {
