@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#1e293b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="SBC Inventory">
-  <link rel="manifest" href="./manifest.webmanifest?v=6">
-  <link rel="stylesheet" href="./css/styles.css?v=6">
+  <link rel="manifest" href="./manifest.webmanifest?v=7">
+  <link rel="stylesheet" href="./css/styles.css?v=7">
   <script src="https://unpkg.com/@zxing/library@latest"></script>
 </head>
 <body>
@@ -209,9 +209,9 @@
         </div>
 
         <div class="export-actions">
-          <button id="btn-export-all" class="btn btn-secondary">Export Entire Inventory CSV</button>
-          <button id="btn-export-filtered" class="btn btn-secondary">Export Filtered CSV</button>
-          <button id="btn-export-stationery-suppliers" class="btn btn-secondary">Export Selected Supplier CSV</button>
+          <button id="btn-export-all" class="btn btn-secondary">Export Entire Inventory XLSX</button>
+          <button id="btn-export-filtered" class="btn btn-secondary">Export Filtered XLSX</button>
+          <button id="btn-export-stationery-suppliers" class="btn btn-secondary">Export Selected Supplier XLSX</button>
           <button id="btn-print-stationery-suppliers" class="btn btn-secondary">Print Supplier Sheets</button>
           <button id="btn-delete-all" class="btn btn-danger">Delete All Inventory</button>
         </div>
@@ -239,10 +239,13 @@
 
   <datalist id="publisher-suggestions"></datalist>
 
-  <script src="./js/storage.js?v=6"></script>
-  <script src="./js/metadata.js?v=6"></script>
-  <script src="./js/scanner.js?v=6"></script>
-  <script src="./js/app.js?v=6"></script>
+  <!-- SheetJS Library for XLSX Exports -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <script src="./js/storage.js?v=7"></script>
+  <script src="./js/metadata.js?v=7"></script>
+  <script src="./js/scanner.js?v=7"></script>
+  <script src="./js/app.js?v=7"></script>
   <script>
     if ('serviceWorker' in navigator) {
       let refreshing = false;
@@ -253,7 +256,7 @@
       });
 
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js?v=6')
+        navigator.serviceWorker.register('./service-worker.js?v=7')
           .then((registration) => registration.update());
       });
     }
