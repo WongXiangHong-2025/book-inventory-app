@@ -191,10 +191,6 @@ function isStationeryItem(item) {
   return item.itemType === 'Stationery' || item.bookCategory === 'Stationery';
 }
 
-function csvCell(value) {
-  return `"${asText(value).replace(/"/g, '""')}"`;
-}
-
 // Google Search Helper
 document.getElementById('btn-search-google').addEventListener('click', () => {
   const isbn = document.getElementById('nb-isbn').value;
@@ -304,13 +300,16 @@ async function prepareStationeryStocktake() {
   document.getElementById('st-code').focus();
 }
 
-async function findStationeryStocktakeMatch(code, supplier) {
+// Check for existing stationery using Code + Supplier + Item Name
+async function findStationeryStocktakeMatch(code, supplier, name) {
   const matches = await StorageManager.getBooksByBarcode(code);
   const normalizedSupplier = asText(supplier).trim().toLowerCase();
+  const normalizedName = asText(name).trim().toLowerCase();
 
   return matches.find(item =>
     isStationeryItem(item) &&
-    asText(item.publisher).trim().toLowerCase() === normalizedSupplier
+    asText(item.publisher).trim().toLowerCase() === normalizedSupplier &&
+    asText(item.title).trim().toLowerCase() === normalizedName
   ) || null;
 }
 
@@ -329,8 +328,9 @@ async function prefillStocktakeFromExisting() {
   const exactMatch = supplier
     ? stationeryMatches.find(item => asText(item.publisher).trim().toLowerCase() === supplier.toLowerCase())
     : null;
+
   if (supplier && !exactMatch) {
-    document.getElementById('st-status').textContent = `Code ${code} exists under another supplier. Fill the item details to save it under ${supplier}.`;
+    document.getElementById('st-status').textContent = `Code ${code} exists under another supplier. Fill item details to save under ${supplier}.`;
     return;
   }
 
@@ -343,7 +343,7 @@ async function prefillStocktakeFromExisting() {
   document.getElementById('st-rack').value = item.rackLocation || StorageManager.getLastRack();
   document.getElementById('st-qty').value = item.quantity || 0;
   document.getElementById('st-price').value = item.sellingPrice || '';
-  document.getElementById('st-status').textContent = `Loaded existing stationery item ${code}. Update the counted quantity and save.`;
+  document.getElementById('st-status').textContent = `Loaded existing item ${code}. Modify name to create a new variant, or edit and save.`;
 }
 
 function clearStocktakeLine() {
@@ -417,6 +417,7 @@ document.getElementById('btn-stocktake-view').addEventListener('click', () => {
   loadInventory();
 });
 
+// Handle stationery save logic (avoids unwanted overwrites)
 document.getElementById('form-stationery-stocktake').addEventListener('submit', async (e) => {
   e.preventDefault();
 
@@ -442,8 +443,10 @@ document.getElementById('form-stationery-stocktake').addEventListener('submit', 
     return;
   }
 
-  const existing = await findStationeryStocktakeMatch(code, supplier);
-  const stationery = existing || {
+  // Exact match required on Code + Supplier + Name
+  const existing = await findStationeryStocktakeMatch(code, supplier, name);
+
+  const stationery = existing ? { ...existing } : {
     itemType: 'Stationery',
     isbn: code,
     bookCategory: 'Stationery'
@@ -461,7 +464,7 @@ document.getElementById('form-stationery-stocktake').addEventListener('submit', 
   StorageManager.setLastRack(rack);
   StorageManager.setLastSupplier(supplier);
 
-  document.getElementById('st-status').textContent = `${existing ? 'Updated' : 'Saved'} ${code} - ${name}.`;
+  document.getElementById('st-status').textContent = `${existing ? 'Updated' : 'Saved new'} ${code} - ${name}.`;
   clearStocktakeLine();
   await updatePublisherSuggestions();
   await updateStationerySupplierSummary();
@@ -560,6 +563,7 @@ document.getElementById('inventory-tbody').addEventListener('click', async (even
     await window.deleteBook(button.dataset.id);
   }
 });
+
 function updateSummaryCards(books) {
   document.getElementById('stat-titles').textContent = books.length;
   document.getElementById('stat-stock').textContent = books.reduce((acc, b) => acc + (Number(b.quantity) || 0), 0);
@@ -671,14 +675,15 @@ async function clearInventoryItems(items) {
   await Promise.all(items.map(item => StorageManager.deleteBook(item.id)));
 }
 
-// CSV Export
+// XLSX Export Handlers
 document.getElementById('btn-export-all').addEventListener('click', async () => {
   const allBooks = await StorageManager.getAllBooks();
   allBooks.sort((a, b) => asText(a.bookCategory).localeCompare(asText(b.bookCategory)));
-  exportCSV(allBooks, 'entire_inventory.csv');
+  exportXLSX(allBooks, 'entire_inventory.xlsx');
 });
+
 document.getElementById('btn-export-filtered').addEventListener('click', () => {
-  exportCSV(filteredBooksList, 'filtered_inventory.csv');
+  exportXLSX(filteredBooksList, 'filtered_inventory.xlsx');
 });
 
 document.getElementById('btn-export-stationery-suppliers').addEventListener('click', async () => {
@@ -697,7 +702,7 @@ document.getElementById('btn-export-stationery-suppliers').addEventListener('cli
     return;
   }
 
-  exportCSV(supplierItems, `stationery_${safeFilename(selectedSupplier)}.csv`);
+  exportXLSX(supplierItems, `stationery_${safeFilename(selectedSupplier)}.xlsx`);
 });
 
 document.getElementById('btn-print-stationery-suppliers').addEventListener('click', async () => {
@@ -716,26 +721,32 @@ document.getElementById('btn-print-stationery-suppliers').addEventListener('clic
   openSupplierPrintSheets(groups);
 });
 
-function exportCSV(books, filename) {
-  const headers = ['Rack Location', 'Category', 'Publisher / Supplier', 'SBC Code / ISBN', 'Title / Item Name', 'Qty Available', 'Selling Price (RM)'];
-  const rows = books.map(b => [
-    csvCell(b.rackLocation),
-    csvCell(b.bookCategory),
-    csvCell(b.publisher || ''),
-    csvCell(b.isbn),
-    csvCell(b.title),
-    csvCell(b.quantity),
-    csvCell(formatPrice(b.sellingPrice))
-  ]);
+function exportXLSX(books, filename) {
+  if (typeof XLSX === 'undefined') {
+    alert('Excel library not loaded. Please check your internet connection and try again.');
+    return;
+  }
 
-  const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-  const encodedUri = encodeURI(csvContent);
-  const link = document.createElement('a');
-  link.setAttribute('href', encodedUri);
-  link.setAttribute('download', filename);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  const formattedData = books.map(b => ({
+    'Rack Location': b.rackLocation || '',
+    'Category': b.bookCategory || '',
+    'Publisher / Supplier': b.publisher || '',
+    'SBC Code / ISBN': b.isbn || '',
+    'Title / Item Name': b.title || '',
+    'Qty Available': Number(b.quantity) || 0,
+    'Selling Price (RM)': Number(b.sellingPrice) || 0.00
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(formattedData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Inventory');
+
+  const colWidths = Object.keys(formattedData[0] || {}).map(key => ({
+    wch: Math.max(key.length, 18)
+  }));
+  worksheet['!cols'] = colWidths;
+
+  XLSX.writeFile(workbook, filename);
 }
 
 function groupStationeryBySupplier(books) {
