@@ -300,7 +300,7 @@ async function prepareStationeryStocktake() {
   document.getElementById('st-code').focus();
 }
 
-// Check for existing stationery using Code + Supplier + Item Name
+// Match function: Checks Code + Supplier + Item Name so variants don't overwrite each other
 async function findStationeryStocktakeMatch(code, supplier, name) {
   const matches = await StorageManager.getBooksByBarcode(code);
   const normalizedSupplier = asText(supplier).trim().toLowerCase();
@@ -417,7 +417,7 @@ document.getElementById('btn-stocktake-view').addEventListener('click', () => {
   loadInventory();
 });
 
-// Handle stationery save logic (avoids unwanted overwrites)
+// Save Stationery Form Handler (distinguishes items by Code + Supplier + Name)
 document.getElementById('form-stationery-stocktake').addEventListener('submit', async (e) => {
   e.preventDefault();
 
@@ -443,7 +443,6 @@ document.getElementById('form-stationery-stocktake').addEventListener('submit', 
     return;
   }
 
-  // Exact match required on Code + Supplier + Name
   const existing = await findStationeryStocktakeMatch(code, supplier, name);
 
   const stationery = existing ? { ...existing } : {
@@ -786,6 +785,7 @@ function safeFilename(value) {
   return asText(value).trim().replace(/[^0-9A-Za-z_-]+/g, '_') || 'no_supplier';
 }
 
+// Opens preview window with direct options for both Printing and Downloading PDF
 function openSupplierPrintSheets(groups) {
   const generatedDate = new Date().toLocaleDateString();
   const sheets = groups.map(([supplier, items]) => {
@@ -840,8 +840,13 @@ function openSupplierPrintSheets(groups) {
     <html>
     <head>
       <title>Stationery Supplier Sheets</title>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
       <style>
         body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
+        .action-bar { display: flex; gap: 12px; margin-bottom: 20px; }
+        .action-btn { padding: 10px 18px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; }
+        .btn-print { background-color: #2563eb; color: #fff; }
+        .btn-pdf { background-color: #059669; color: #fff; }
         header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px; }
         h1 { margin: 4px 0 0; font-size: 22px; }
         p { margin: 4px 0 0; }
@@ -849,16 +854,40 @@ function openSupplierPrintSheets(groups) {
         table { width: 100%; border-collapse: collapse; font-size: 11px; }
         th, td { border: 1px solid #9ca3af; padding: 6px; text-align: left; }
         th { background: #f3f4f6; }
-        tfoot td { font-weight: 700; }
-        .supplier-sheet { page-break-after: always; }
+        .supplier-sheet { page-break-after: always; padding-bottom: 20px; }
         .supplier-sheet:last-child { page-break-after: auto; }
-        @media print { body { margin: 10mm; } }
+        @media print { 
+          .action-bar { display: none !important; } 
+          body { margin: 10mm; } 
+        }
       </style>
     </head>
-    <body>${sheets}</body>
+    <body>
+      <div class="action-bar">
+        <button class="action-btn btn-print" onclick="window.print()">Print Document</button>
+        <button class="action-btn btn-pdf" onclick="downloadPDF()">Download PDF</button>
+      </div>
+
+      <div id="print-content">
+        ${sheets}
+      </div>
+
+      <script>
+        function downloadPDF() {
+          const element = document.getElementById('print-content');
+          const opt = {
+            margin:       10,
+            filename:     'stationery_supplier_sheets.pdf',
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2 },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+          };
+          html2pdf().set(opt).from(element).save();
+        }
+      </script>
+    </body>
     </html>
   `);
   printWindow.document.close();
   printWindow.focus();
-  printWindow.print();
 }
