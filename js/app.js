@@ -796,6 +796,7 @@ function openSupplierPrintSheets(groups) {
         <td>${escapeHTML(item.isbn)}</td>
         <td>${escapeHTML(item.quantity)}</td>
         <td>${formatPrice(item.sellingPrice)}</td>
+        <td></td> <!-- Blank Cost Price Cell -->
       </tr>
     `).join('');
 
@@ -820,6 +821,7 @@ function openSupplierPrintSheets(groups) {
               <th>Stationery Code</th>
               <th>Qty</th>
               <th>Selling Price</th>
+              <th>Cost Price</th> <!-- Added Header -->
             </tr>
           </thead>
           <tbody>${rows}</tbody>
