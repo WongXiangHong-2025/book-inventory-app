@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#1e293b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="SBC Inventory">
-  <link rel="manifest" href="./manifest.webmanifest?v=14">
-  <link rel="stylesheet" href="./css/styles.css?v=14">
+  <link rel="manifest" href="./manifest.webmanifest?v=13">
+  <link rel="stylesheet" href="./css/styles.css?v=13">
   <script src="https://unpkg.com/@zxing/library@latest"></script>
 </head>
 <body>
@@ -29,6 +29,7 @@
         <div class="video-wrapper">
           <video id="video-preview" autoplay muted playsinline></video>
           
+          <!-- SCANNER OVERLAY AIMING BOX -->
           <div id="scanner-overlay" class="scanner-overlay hidden">
             <div class="target-box">
               <div class="corner top-left"></div>
@@ -207,17 +208,6 @@
           </select>
         </div>
 
-        <!-- PRINT SORTING & FILTER CONTROL PANEL -->
-        <div class="print-options-bar" style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; align-items: center;">
-          <label style="font-size: 13px; font-weight: bold;">
-            Print Sort By:
-            <select id="print-sort-by" style="padding: 6px; border-radius: 4px; border: 1px solid #ccc; margin-left: 4px;">
-              <option value="rack">Rack Location</option>
-              <option value="code">Stationery Code</option>
-            </select>
-          </label>
-        </div>
-
         <div class="export-actions">
           <button id="btn-export-all" class="btn btn-secondary">Export Entire Inventory XLSX</button>
           <button id="btn-export-filtered" class="btn btn-secondary">Export Filtered XLSX</button>
@@ -247,17 +237,15 @@
     </section>
   </main>
 
-  <!-- HIDDEN PRINT CONTAINER FOR IN-PAGE IOS PRINTING -->
-  <div id="print-container"></div>
-
   <datalist id="publisher-suggestions"></datalist>
 
+  <!-- SheetJS Library for XLSX Exports -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
-  <script src="./js/storage.js?v=14"></script>
-  <script src="./js/metadata.js?v=14"></script>
-  <script src="./js/scanner.js?v=14"></script>
-  <script src="./js/app.js?v=14"></script>
+  <script src="./js/storage.js?v=13"></script>
+  <script src="./js/metadata.js?v=13"></script>
+  <script src="./js/scanner.js?v=13"></script>
+  <script src="./js/app.js?v=13"></script>
   <script>
     if ('serviceWorker' in navigator) {
       let refreshing = false;
@@ -268,7 +256,7 @@
       });
 
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js?v=14')
+        navigator.serviceWorker.register('./service-worker.js?v=13')
           .then((registration) => registration.update());
       });
     }
