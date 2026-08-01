@@ -704,7 +704,19 @@ document.getElementById('btn-export-stationery-suppliers').addEventListener('cli
   exportXLSX(supplierItems, `stationery_${safeFilename(selectedSupplier)}.xlsx`);
 });
 
+// iOS-COMPATIBLE PRINT POP-UP TRIGGER
 document.getElementById('btn-print-stationery-suppliers').addEventListener('click', async () => {
+  // 1. Synchronously open window immediately on click so iOS Safari allows the pop-up
+  const printWindow = window.open('', '_blank');
+
+  if (!printWindow) {
+    alert('Unable to open print window. Please allow pop-ups for this site in your browser settings.');
+    return;
+  }
+
+  printWindow.document.write('<p style="font-family: sans-serif; padding: 20px;">Loading supplier sheets...</p>');
+
+  // 2. Perform async database queries
   const allBooks = await StorageManager.getAllBooks();
   const selectedSupplier = document.getElementById('filter-publisher').value;
   const sourceItems = selectedSupplier
@@ -713,11 +725,13 @@ document.getElementById('btn-print-stationery-suppliers').addEventListener('clic
   const groups = groupStationeryBySupplier(sourceItems);
 
   if (!groups.length) {
+    printWindow.close();
     alert('No stationery items to print.');
     return;
   }
 
-  openSupplierPrintSheets(groups);
+  // 3. Render HTML into already opened window
+  renderSupplierPrintSheets(printWindow, groups);
 });
 
 function exportXLSX(books, filename) {
@@ -785,7 +799,7 @@ function safeFilename(value) {
   return asText(value).trim().replace(/[^0-9A-Za-z_-]+/g, '_') || 'no_supplier';
 }
 
-function openSupplierPrintSheets(groups) {
+function renderSupplierPrintSheets(printWindow, groups) {
   const generatedDate = new Date().toLocaleDateString();
   const sheets = groups.map(([supplier, items]) => {
     const rows = items.map(item => `
@@ -821,7 +835,7 @@ function openSupplierPrintSheets(groups) {
               <th>Stationery Code</th>
               <th>Qty</th>
               <th>Selling Price</th>
-              <th>Cost Price</th> <!-- Added Header -->
+              <th>Cost Price</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -830,12 +844,7 @@ function openSupplierPrintSheets(groups) {
     `;
   }).join('');
 
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
-    alert('Unable to open print window. Please allow pop-ups for this page.');
-    return;
-  }
-
+  printWindow.document.open();
   printWindow.document.write(`
     <!DOCTYPE html>
     <html>
