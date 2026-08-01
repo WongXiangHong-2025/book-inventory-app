@@ -704,34 +704,31 @@ document.getElementById('btn-export-stationery-suppliers').addEventListener('cli
   exportXLSX(supplierItems, `stationery_${safeFilename(selectedSupplier)}.xlsx`);
 });
 
-// iOS-COMPATIBLE PRINT POP-UP TRIGGER
+// iOS-Compatible Print Handler with Rack Location Filtering & Sorting
 document.getElementById('btn-print-stationery-suppliers').addEventListener('click', async () => {
-  // 1. Synchronously open window immediately on click so iOS Safari allows the pop-up
-  const printWindow = window.open('', '_blank');
-
-  if (!printWindow) {
-    alert('Unable to open print window. Please allow pop-ups for this site in your browser settings.');
-    return;
-  }
-
-  printWindow.document.write('<p style="font-family: sans-serif; padding: 20px;">Loading supplier sheets...</p>');
-
-  // 2. Perform async database queries
   const allBooks = await StorageManager.getAllBooks();
   const selectedSupplier = document.getElementById('filter-publisher').value;
-  const sourceItems = selectedSupplier
-    ? getStationeryItemsForSupplier(allBooks, selectedSupplier)
-    : allBooks;
-  const groups = groupStationeryBySupplier(sourceItems);
+  const selectedRack = document.getElementById('filter-rack').value;
+  const sortBy = document.getElementById('print-sort-by').value;
+
+  let sourceItems = allBooks.filter(isStationeryItem);
+
+  if (selectedSupplier) {
+    sourceItems = sourceItems.filter(item => normalizeSupplierName(item.publisher) === normalizeSupplierName(selectedSupplier));
+  }
+
+  if (selectedRack) {
+    sourceItems = sourceItems.filter(item => asText(item.rackLocation).trim().toLowerCase() === selectedRack.trim().toLowerCase());
+  }
+
+  const groups = groupStationeryBySupplier(sourceItems, sortBy);
 
   if (!groups.length) {
-    printWindow.close();
-    alert('No stationery items to print.');
+    alert('No stationery items found matching your selections.');
     return;
   }
 
-  // 3. Render HTML into already opened window
-  renderSupplierPrintSheets(printWindow, groups);
+  printSupplierSheetsInPage(groups);
 });
 
 function exportXLSX(books, filename) {
@@ -762,20 +759,27 @@ function exportXLSX(books, filename) {
   XLSX.writeFile(workbook, filename);
 }
 
-function groupStationeryBySupplier(books) {
-  const groups = books
-    .filter(isStationeryItem)
-    .reduce((acc, item) => {
-      const supplier = item.publisher || 'No Supplier';
-      if (!acc[supplier]) acc[supplier] = [];
-      acc[supplier].push(item);
-      return acc;
-    }, {});
+// Group & Sort function supports sorting by Rack Location or Code
+function groupStationeryBySupplier(books, sortBy = 'rack') {
+  const groups = books.reduce((acc, item) => {
+    const supplier = item.publisher || 'No Supplier';
+    if (!acc[supplier]) acc[supplier] = [];
+    acc[supplier].push(item);
+    return acc;
+  }, {});
 
   return Object.entries(groups)
     .map(([supplier, items]) => [
       supplier,
-      items.sort((a, b) => asText(a.isbn).localeCompare(asText(b.isbn), undefined, { numeric: true }))
+      items.sort((a, b) => {
+        if (sortBy === 'rack') {
+          const rackCompare = asText(a.rackLocation).localeCompare(asText(b.rackLocation), undefined, { numeric: true });
+          if (rackCompare !== 0) return rackCompare;
+          return asText(a.isbn).localeCompare(asText(b.isbn), undefined, { numeric: true });
+        } else {
+          return asText(a.isbn).localeCompare(asText(b.isbn), undefined, { numeric: true });
+        }
+      })
     ])
     .sort(([a], [b]) => a.localeCompare(b));
 }
@@ -799,8 +803,10 @@ function safeFilename(value) {
   return asText(value).trim().replace(/[^0-9A-Za-z_-]+/g, '_') || 'no_supplier';
 }
 
-function renderSupplierPrintSheets(printWindow, groups) {
+function printSupplierSheetsInPage(groups) {
   const generatedDate = new Date().toLocaleDateString();
+  const printContainer = document.getElementById('print-container');
+
   const sheets = groups.map(([supplier, items]) => {
     const rows = items.map(item => `
       <tr>
@@ -816,14 +822,14 @@ function renderSupplierPrintSheets(printWindow, groups) {
 
     return `
       <section class="supplier-sheet">
-        <header>
+        <header style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px;">
           <div>
-            <strong>Supplier</strong>
-            <h1>${escapeHTML(supplier)}</h1>
+            <strong style="font-size: 11px; text-transform: uppercase; color: #4b5563;">Supplier</strong>
+            <h1 style="margin: 4px 0 0; font-size: 22px;">${escapeHTML(supplier)}</h1>
           </div>
           <div>
-            <strong>Date</strong>
-            <p>${escapeHTML(generatedDate)}</p>
+            <strong style="font-size: 11px; text-transform: uppercase; color: #4b5563;">Date</strong>
+            <p style="margin: 4px 0 0;">${escapeHTML(generatedDate)}</p>
           </div>
         </header>
         <table>
@@ -844,60 +850,10 @@ function renderSupplierPrintSheets(printWindow, groups) {
     `;
   }).join('');
 
-  printWindow.document.open();
-  printWindow.document.write(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Stationery Supplier Sheets</title>
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-      <style>
-        body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
-        .action-bar { display: flex; gap: 12px; margin-bottom: 20px; }
-        .action-btn { padding: 10px 18px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; }
-        .btn-print { background-color: #2563eb; color: #fff; }
-        .btn-pdf { background-color: #059669; color: #fff; }
-        header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px; }
-        h1 { margin: 4px 0 0; font-size: 22px; }
-        p { margin: 4px 0 0; }
-        strong { font-size: 11px; text-transform: uppercase; color: #4b5563; }
-        table { width: 100%; border-collapse: collapse; font-size: 11px; }
-        th, td { border: 1px solid #9ca3af; padding: 6px; text-align: left; }
-        th { background: #f3f4f6; }
-        .supplier-sheet { page-break-after: always; padding-bottom: 20px; }
-        .supplier-sheet:last-child { page-break-after: auto; }
-        @media print { 
-          .action-bar { display: none !important; } 
-          body { margin: 10mm; } 
-        }
-      </style>
-    </head>
-    <body>
-      <div class="action-bar">
-        <button class="action-btn btn-print" onclick="window.print()">Print Document</button>
-        <button class="action-btn btn-pdf" onclick="downloadPDF()">Download PDF</button>
-      </div>
+  printContainer.innerHTML = sheets;
+  window.print();
 
-      <div id="print-content">
-        ${sheets}
-      </div>
-
-      <script>
-        function downloadPDF() {
-          const element = document.getElementById('print-content');
-          const opt = {
-            margin:       10,
-            filename:     'stationery_supplier_sheets.pdf',
-            image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2 },
-            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-          };
-          html2pdf().set(opt).from(element).save();
-        }
-      </script>
-    </body>
-    </html>
-  `);
-  printWindow.document.close();
-  printWindow.focus();
+  setTimeout(() => {
+    printContainer.innerHTML = '';
+  }, 1000);
 }
