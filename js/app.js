@@ -453,7 +453,7 @@ document.getElementById('btn-print-supplier-sheets').addEventListener('click', (
   const printContainer = document.getElementById('print-container');
   printContainer.innerHTML = '';
 
-  const targetRackLabel = rackFilter ? Rack Location: ${rackFilter} : All Racks;
+  const targetRackLabel = rackFilter ? `Rack Location: ${rackFilter}` : `All Racks`;
   const currentDate = new Date().toLocaleDateString();
 
   // Create a separate printable page per supplier
@@ -473,7 +473,7 @@ document.getElementById('btn-print-supplier-sheets').addEventListener('click', (
         <td style="text-align: center;">${item.bookCategory}</td>
         <td style="text-align: right;">${item.sellingPrice.toFixed(2)}</td>
         <td style="text-align: center; font-weight: bold;">${item.quantity}</td>
-        <td style="width: 80px;"></td> <!-- Blank column space for handwritten/recorded Cost Price -->
+        <td style="width: 80px;"></td> <!-- Blank space for recorded Cost Price -->
       </tr>
     `).join('');
 
