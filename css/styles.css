@@ -393,7 +393,6 @@ form select:focus {
   font-size: 0.85rem;
 }
 
-/* Vertical Stacked Buttons */
 .export-actions {
   display: flex;
   flex-direction: column;
