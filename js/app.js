@@ -72,10 +72,10 @@ document.getElementById('btn-manual-submit').addEventListener('click', () => {
   const rawInput = manualIsbnInput.value.trim();
   const isbn = cleanISBN(rawInput);
   
+  // If the input has no letters or numbers (e.g. empty, "-", "--", " "), treat it as a new direct entry
   if (isbn) {
     handleScannedISBN(isbn);
   } else {
-    // If blank or just a standalone symbol like "-", skip searching and open modal directly
     pendingBarcode = '';
     manualIsbnInput.value = '';
     modalItemType.classList.remove('hidden');
@@ -84,8 +84,12 @@ document.getElementById('btn-manual-submit').addEventListener('click', () => {
 
 async function handleScannedISBN(rawISBN) {
   const isbn = cleanISBN(rawISBN);
+
+  // Guard against standalone symbols triggering a database search
   if (!isbn) {
-    alert('Invalid Barcode / ISBN');
+    pendingBarcode = '';
+    manualIsbnInput.value = '';
+    modalItemType.classList.remove('hidden');
     return;
   }
 
@@ -97,6 +101,7 @@ async function handleScannedISBN(rawISBN) {
     if (localMatches.length === 1) {
       showExistingModal(localMatches[0]);
     } else if (localMatches.length > 1) {
+      // Multiple distinct products genuinely sharing the exact same valid alphanumeric barcode
       let optionsList = localMatches.map((item, idx) => 
         `${idx + 1}. [${item.itemType || 'Book'}] ${item.title} (Rack: ${item.rackLocation}, Qty: ${item.quantity})`
       ).join('\n');
@@ -106,7 +111,7 @@ async function handleScannedISBN(rawISBN) {
         "1"
       );
 
-      if (choice === null) return;
+      if (choice === null) return; // Cancelled
 
       let selectedIndex = parseInt(choice, 10) - 1;
       if (!isNaN(selectedIndex) && localMatches[selectedIndex]) {
@@ -116,6 +121,7 @@ async function handleScannedISBN(rawISBN) {
         modalItemType.classList.remove('hidden');
       }
     } else {
+      // No product has this barcode yet
       pendingBarcode = isbn;
       modalItemType.classList.remove('hidden');
     }
@@ -184,10 +190,11 @@ document.getElementById('btn-type-stationery').addEventListener('click', async (
   showSection('new-stationery');
 });
 
-// Cleans input but ensures lone symbols like "-" without letters/numbers are treated as blank
+// Sanitization: allows valid formats (like 11-30, SP-DOL2), but strips out inputs with zero alphanumeric characters
 function cleanISBN(isbn) {
   if (!isbn) return '';
   const cleaned = isbn.replace(/[^0-9Xa-zA-Z\-\/ ]/gi, '').trim();
+  // Must contain at least one letter or number to be considered an identifiable barcode
   const hasAlphaNum = /[0-9a-zA-Z]/.test(cleaned);
   return hasAlphaNum ? cleaned : '';
 }
@@ -282,14 +289,15 @@ document.getElementById('form-stationery-direct').addEventListener('submit', asy
 
   const rack = document.getElementById('sd-rack').value.trim();
   const supplier = document.getElementById('sd-supplier').value.trim();
-  const barcode = cleanISBN(document.getElementById('sd-barcode').value);
+  const rawBarcode = document.getElementById('sd-barcode').value.trim();
+  const barcode = cleanISBN(rawBarcode); // Cleaned: if user entered "-", it becomes ""
   const name = document.getElementById('sd-name').value.trim();
   const qty = parseInt(document.getElementById('sd-qty').value, 10);
   const price = parseFloat(document.getElementById('sd-price').value);
 
   const stationery = {
     itemType: 'Stationery',
-    isbn: barcode,
+    isbn: barcode, // Blank if no code or lone dash
     title: name,
     publisher: supplier,
     rackLocation: rack,
@@ -301,7 +309,7 @@ document.getElementById('form-stationery-direct').addEventListener('submit', asy
   await StorageManager.saveBook(stationery);
   StorageManager.setLastRack(rack);
 
-  // Clear inputs while keeping supplier and rack for fast entry
+  // Clear inputs while keeping supplier and rack for fast continuous entry
   document.getElementById('sd-barcode').value = '';
   document.getElementById('sd-name').value = '';
   document.getElementById('sd-qty').value = 1;
@@ -375,26 +383,23 @@ function filterAndRender(books) {
   updateSummaryCards(filteredBooksList);
 }
 
+// Render Table using list index to guarantee Edit & Delete always find the exact item in memory
 function renderTable(books) {
   const tbody = document.getElementById('inventory-tbody');
-  tbody.innerHTML = books.map(b => {
-    // Unique identifier fallback so both legacy and new records work
-    const itemKey = b.id !== undefined ? b.id : b.isbn;
-    const safeTitle = (b.title || '').replace(/'/g, "\\'");
-
+  tbody.innerHTML = books.map((b, index) => {
     return `
       <tr>
         <td>${b.rackLocation}</td>
         <td>${b.bookCategory}</td>
         <td>${b.publisher || '-'}</td>
-        <td>${b.isbn ? b.isbn : '<em style="color:#888;">[BLANK]</em>'}</td>
+        <td>${b.isbn && b.isbn !== '-' ? b.isbn : '<em style="color:#888;">[BLANK]</em>'}</td>
         <td>${b.title}</td>
         <td>${b.quantity}</td>
         <td>${b.sellingPrice.toFixed(2)}</td>
         <td>
           <div class="action-btns">
-            <button class="btn btn-tertiary" onclick="editBook('${itemKey}')">Edit</button>
-            <button class="btn btn-danger" onclick="deleteBook('${itemKey}', '${safeTitle}')">Delete</button>
+            <button class="btn btn-tertiary" onclick="editBookByIndex(${index})">Edit</button>
+            <button class="btn btn-danger" onclick="deleteBookByIndex(${index})">Delete</button>
           </div>
         </td>
       </tr>
@@ -410,51 +415,58 @@ function updateSummaryCards(books) {
   document.getElementById('stat-stationery').textContent = books.filter(b => b.bookCategory === 'Stationery').length;
 }
 
-// Edit Item (Key-agnostic: supports ID or ISBN)
-window.editBook = async (key) => {
-  const book = await StorageManager.getBookByKey(key);
-  if (!book) return;
+// Edit Item by memory index
+window.editBookByIndex = async (index) => {
+  const book = filteredBooksList[index];
+  if (!book) {
+    alert("Item not found.");
+    return;
+  }
 
   const isStat = book.bookCategory === 'Stationery';
   const labelTitle = isStat ? 'Edit Item Name:' : 'Edit Book Title:';
   const labelPub = isStat ? 'Edit Supplier:' : 'Edit Publisher:';
 
-  const newBarcode = prompt('Edit Barcode/ISBN (Leave empty if none):', book.isbn || '');
+  const newBarcode = prompt('Edit Barcode / SBC Code (Leave empty if none):', (book.isbn && book.isbn !== '-') ? book.isbn : '');
   if (newBarcode === null) return;
 
-  const newTitle = prompt(labelTitle, book.title);
+  const newTitle = prompt(labelTitle, book.title || '');
   if (newTitle === null) return;
 
   const newPublisher = prompt(labelPub, book.publisher || '');
   if (newPublisher === null) return;
 
-  const newRack = prompt('Edit Rack Location:', book.rackLocation);
+  const newRack = prompt('Edit Rack Location:', book.rackLocation || '');
   if (newRack === null) return;
 
-  const newPrice = prompt('Edit Selling Price (RM):', book.sellingPrice);
+  const newPrice = prompt('Edit Selling Price (RM):', book.sellingPrice !== undefined ? book.sellingPrice : '');
   if (newPrice === null) return;
 
-  const newQty = prompt('Edit Quantity:', book.quantity);
+  const newQty = prompt('Edit Quantity:', book.quantity !== undefined ? book.quantity : '');
   if (newQty === null) return;
 
   book.isbn = cleanISBN(newBarcode);
   book.title = newTitle.trim();
   book.publisher = newPublisher.trim();
   book.rackLocation = newRack.trim();
-  book.sellingPrice = parseFloat(newPrice);
-  book.quantity = parseInt(newQty, 10);
+  book.sellingPrice = parseFloat(newPrice) || 0;
+  book.quantity = parseInt(newQty, 10) || 0;
 
   await StorageManager.saveBook(book);
-  loadInventory();
+  await loadInventory();
 };
 
-// Delete Item (Key-agnostic: supports ID or ISBN)
-window.deleteBook = async (key, title) => {
-  const confirmed = confirm(`Are you sure you want to delete "${title}" from inventory?`);
+// Delete Item by memory index
+window.deleteBookByIndex = async (index) => {
+  const book = filteredBooksList[index];
+  if (!book) return;
+
+  const confirmed = confirm(`Are you sure you want to delete "${book.title}" from inventory?`);
   if (confirmed) {
-    await StorageManager.deleteBook(key);
+    const keyToDelete = book.id !== undefined ? book.id : book.isbn;
+    await StorageManager.deleteBook(keyToDelete);
     alert('Item deleted successfully.');
-    loadInventory();
+    await loadInventory();
   }
 };
 
@@ -499,13 +511,13 @@ document.getElementById('btn-print-supplier-sheets').addEventListener('click', (
     const rowsHtml = items.map((item, idx) => `
       <tr>
         <td style="text-align: center; width: 40px;">${idx + 1}</td>
-        <td>${item.isbn || '[BLANK]'}</td>
+        <td>${(item.isbn && item.isbn !== '-') ? item.isbn : '[BLANK]'}</td>
         <td><strong>${item.title}</strong></td>
         <td style="text-align: center;">${item.rackLocation}</td>
         <td style="text-align: center;">${item.bookCategory}</td>
         <td style="text-align: right;">${item.sellingPrice.toFixed(2)}</td>
         <td style="text-align: center; font-weight: bold;">${item.quantity}</td>
-        <td style="width: 80px;"></td> <!-- Cost Price column space -->
+        <td style="width: 80px;"></td> <!-- Cost Price space -->
       </tr>
     `).join('');
 
@@ -539,7 +551,7 @@ document.getElementById('btn-print-supplier-sheets').addEventListener('click', (
   window.print();
 });
 
-// 2. Save as PDF (Triggers browser Save-as-PDF on the filtered items)
+// 2. Save as PDF (Triggers print-to-PDF on current filtered inventory)
 document.getElementById('btn-save-pdf').addEventListener('click', () => {
   const itemsToPrint = filteredBooksList.length > 0 ? filteredBooksList : [];
   if (itemsToPrint.length === 0) {
@@ -558,7 +570,7 @@ document.getElementById('btn-save-pdf').addEventListener('click', () => {
   const rowsHtml = itemsToPrint.map((item, idx) => `
     <tr>
       <td style="text-align: center; width: 40px;">${idx + 1}</td>
-      <td>${item.isbn || '[BLANK]'}</td>
+      <td>${(item.isbn && item.isbn !== '-') ? item.isbn : '[BLANK]'}</td>
       <td><strong>${item.title}</strong></td>
       <td style="text-align: center;">${item.rackLocation}</td>
       <td style="text-align: center;">${item.bookCategory}</td>
