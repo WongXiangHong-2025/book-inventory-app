@@ -72,7 +72,7 @@ document.getElementById('btn-manual-submit').addEventListener('click', () => {
   const rawInput = manualIsbnInput.value.trim();
   const isbn = cleanISBN(rawInput);
   
-  // If the input has no letters or numbers (e.g. empty, "-", "--", " "), treat it as a new direct entry
+  // If the input has no letters or numbers (e.g. empty, "-", "--", " "), treat it as a direct new entry
   if (isbn) {
     handleScannedISBN(isbn);
   } else {
@@ -101,7 +101,6 @@ async function handleScannedISBN(rawISBN) {
     if (localMatches.length === 1) {
       showExistingModal(localMatches[0]);
     } else if (localMatches.length > 1) {
-      // Multiple distinct products genuinely sharing the exact same valid alphanumeric barcode
       let optionsList = localMatches.map((item, idx) => 
         `${idx + 1}. [${item.itemType || 'Book'}] ${item.title} (Rack: ${item.rackLocation}, Qty: ${item.quantity})`
       ).join('\n');
@@ -111,7 +110,7 @@ async function handleScannedISBN(rawISBN) {
         "1"
       );
 
-      if (choice === null) return; // Cancelled
+      if (choice === null) return;
 
       let selectedIndex = parseInt(choice, 10) - 1;
       if (!isNaN(selectedIndex) && localMatches[selectedIndex]) {
@@ -121,7 +120,6 @@ async function handleScannedISBN(rawISBN) {
         modalItemType.classList.remove('hidden');
       }
     } else {
-      // No product has this barcode yet
       pendingBarcode = isbn;
       modalItemType.classList.remove('hidden');
     }
@@ -190,11 +188,10 @@ document.getElementById('btn-type-stationery').addEventListener('click', async (
   showSection('new-stationery');
 });
 
-// Sanitization: allows valid formats (like 11-30, SP-DOL2), but strips out inputs with zero alphanumeric characters
+// Sanitization: allows valid formats (like 11-30, SP-DOL2), but strips inputs with zero alphanumeric characters
 function cleanISBN(isbn) {
   if (!isbn) return '';
   const cleaned = isbn.replace(/[^0-9Xa-zA-Z\-\/ ]/gi, '').trim();
-  // Must contain at least one letter or number to be considered an identifiable barcode
   const hasAlphaNum = /[0-9a-zA-Z]/.test(cleaned);
   return hasAlphaNum ? cleaned : '';
 }
@@ -290,14 +287,14 @@ document.getElementById('form-stationery-direct').addEventListener('submit', asy
   const rack = document.getElementById('sd-rack').value.trim();
   const supplier = document.getElementById('sd-supplier').value.trim();
   const rawBarcode = document.getElementById('sd-barcode').value.trim();
-  const barcode = cleanISBN(rawBarcode); // Cleaned: if user entered "-", it becomes ""
+  const barcode = cleanISBN(rawBarcode);
   const name = document.getElementById('sd-name').value.trim();
   const qty = parseInt(document.getElementById('sd-qty').value, 10);
   const price = parseFloat(document.getElementById('sd-price').value);
 
   const stationery = {
     itemType: 'Stationery',
-    isbn: barcode, // Blank if no code or lone dash
+    isbn: barcode,
     title: name,
     publisher: supplier,
     rackLocation: rack,
@@ -309,7 +306,7 @@ document.getElementById('form-stationery-direct').addEventListener('submit', asy
   await StorageManager.saveBook(stationery);
   StorageManager.setLastRack(rack);
 
-  // Clear inputs while keeping supplier and rack for fast continuous entry
+  // Clear item inputs while keeping supplier and rack
   document.getElementById('sd-barcode').value = '';
   document.getElementById('sd-name').value = '';
   document.getElementById('sd-qty').value = 1;
@@ -383,10 +380,12 @@ function filterAndRender(books) {
   updateSummaryCards(filteredBooksList);
 }
 
-// Render Table using list index to guarantee Edit & Delete always find the exact item in memory
+// Render Table: Passes exact item identifier (numeric ID or index fallback)
 function renderTable(books) {
   const tbody = document.getElementById('inventory-tbody');
   tbody.innerHTML = books.map((b, index) => {
+    const lookupKey = (b.id !== undefined && b.id !== null) ? b.id : index;
+
     return `
       <tr>
         <td>${b.rackLocation}</td>
@@ -398,8 +397,8 @@ function renderTable(books) {
         <td>${b.sellingPrice.toFixed(2)}</td>
         <td>
           <div class="action-btns">
-            <button class="btn btn-tertiary" onclick="editBookByIndex(${index})">Edit</button>
-            <button class="btn btn-danger" onclick="deleteBookByIndex(${index})">Delete</button>
+            <button class="btn btn-tertiary" onclick="editItem('${lookupKey}')">Edit</button>
+            <button class="btn btn-danger" onclick="deleteItem('${lookupKey}')">Delete</button>
           </div>
         </td>
       </tr>
@@ -415,11 +414,25 @@ function updateSummaryCards(books) {
   document.getElementById('stat-stationery').textContent = books.filter(b => b.bookCategory === 'Stationery').length;
 }
 
-// Edit Item by memory index
-window.editBookByIndex = async (index) => {
-  const book = filteredBooksList[index];
+// Global Edit function with ID or index fallback
+window.editItem = async (key) => {
+  let book = null;
+  const numericId = Number(key);
+
+  if (Number.isFinite(numericId)) {
+    try {
+      book = await StorageManager.getBookById(numericId);
+    } catch (_) {
+      book = null;
+    }
+  }
+
+  if (!book && filteredBooksList[key]) {
+    book = filteredBooksList[key];
+  }
+
   if (!book) {
-    alert("Item not found.");
+    alert("Item could not be found.");
     return;
   }
 
@@ -456,15 +469,32 @@ window.editBookByIndex = async (index) => {
   await loadInventory();
 };
 
-// Delete Item by memory index
-window.deleteBookByIndex = async (index) => {
-  const book = filteredBooksList[index];
+// Global Delete function
+window.deleteItem = async (key) => {
+  let book = null;
+  const numericId = Number(key);
+
+  if (Number.isFinite(numericId)) {
+    try {
+      book = await StorageManager.getBookById(numericId);
+    } catch (_) {
+      book = null;
+    }
+  }
+
+  if (!book && filteredBooksList[key]) {
+    book = filteredBooksList[key];
+  }
+
   if (!book) return;
 
   const confirmed = confirm(`Are you sure you want to delete "${book.title}" from inventory?`);
   if (confirmed) {
-    const keyToDelete = book.id !== undefined ? book.id : book.isbn;
-    await StorageManager.deleteBook(keyToDelete);
+    if (book.id !== undefined && book.id !== null) {
+      await StorageManager.deleteBook(book.id);
+    } else {
+      await StorageManager.deleteBook(book.isbn);
+    }
     alert('Item deleted successfully.');
     await loadInventory();
   }
@@ -551,7 +581,7 @@ document.getElementById('btn-print-supplier-sheets').addEventListener('click', (
   window.print();
 });
 
-// 2. Save as PDF (Triggers print-to-PDF on current filtered inventory)
+// 2. Save as PDF
 document.getElementById('btn-save-pdf').addEventListener('click', () => {
   const itemsToPrint = filteredBooksList.length > 0 ? filteredBooksList : [];
   if (itemsToPrint.length === 0) {
@@ -608,7 +638,7 @@ document.getElementById('btn-save-pdf').addEventListener('click', () => {
   window.print();
 });
 
-// 3. Delete All Items (Double confirmation safeguard)
+// 3. Delete All Items
 document.getElementById('btn-delete-all').addEventListener('click', async () => {
   const allBooks = await StorageManager.getAllBooks();
   if (allBooks.length === 0) {
@@ -621,10 +651,7 @@ document.getElementById('btn-delete-all').addEventListener('click', async () => 
 
   const secondConfirm = prompt('Type "DELETE" in capital letters to confirm wiping all inventory:');
   if (secondConfirm === 'DELETE') {
-    for (const item of allBooks) {
-      const key = item.id !== undefined ? item.id : item.isbn;
-      await StorageManager.deleteBook(key);
-    }
+    await StorageManager.clearAllBooks();
     alert("All items have been deleted from this device.");
     await loadInventory();
   } else {
