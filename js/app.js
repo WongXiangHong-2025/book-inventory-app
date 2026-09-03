@@ -69,11 +69,15 @@ document.getElementById('btn-start-scan').addEventListener('click', () => {
 
 // Manual Barcode / ISBN Search
 document.getElementById('btn-manual-submit').addEventListener('click', () => {
-  const isbn = manualIsbnInput.value.trim();
+  const rawInput = manualIsbnInput.value.trim();
+  const isbn = cleanISBN(rawInput);
+  
   if (isbn) {
     handleScannedISBN(isbn);
   } else {
+    // If blank or just a standalone symbol like "-", skip searching and open modal directly
     pendingBarcode = '';
+    manualIsbnInput.value = '';
     modalItemType.classList.remove('hidden');
   }
 });
@@ -180,9 +184,12 @@ document.getElementById('btn-type-stationery').addEventListener('click', async (
   showSection('new-stationery');
 });
 
-// ALLOWS HYPHENS (-), SLASHES (/), AND SPACES IN BARCODES
+// Cleans input but ensures lone symbols like "-" without letters/numbers are treated as blank
 function cleanISBN(isbn) {
-  return isbn ? isbn.replace(/[^0-9Xa-zA-Z\-\/ ]/gi, '').trim() : '';
+  if (!isbn) return '';
+  const cleaned = isbn.replace(/[^0-9Xa-zA-Z\-\/ ]/gi, '').trim();
+  const hasAlphaNum = /[0-9a-zA-Z]/.test(cleaned);
+  return hasAlphaNum ? cleaned : '';
 }
 
 // Google Search Helper
@@ -294,7 +301,7 @@ document.getElementById('form-stationery-direct').addEventListener('submit', asy
   await StorageManager.saveBook(stationery);
   StorageManager.setLastRack(rack);
 
-  // Clear name, qty, price, code; keep supplier and rack for speed
+  // Clear inputs while keeping supplier and rack for fast entry
   document.getElementById('sd-barcode').value = '';
   document.getElementById('sd-name').value = '';
   document.getElementById('sd-qty').value = 1;
@@ -371,7 +378,7 @@ function filterAndRender(books) {
 function renderTable(books) {
   const tbody = document.getElementById('inventory-tbody');
   tbody.innerHTML = books.map(b => {
-    // Unique identifier for either schema version
+    // Unique identifier fallback so both legacy and new records work
     const itemKey = b.id !== undefined ? b.id : b.isbn;
     const safeTitle = (b.title || '').replace(/'/g, "\\'");
 
@@ -498,7 +505,7 @@ document.getElementById('btn-print-supplier-sheets').addEventListener('click', (
         <td style="text-align: center;">${item.bookCategory}</td>
         <td style="text-align: right;">${item.sellingPrice.toFixed(2)}</td>
         <td style="text-align: center; font-weight: bold;">${item.quantity}</td>
-        <td style="width: 80px;"></td>
+        <td style="width: 80px;"></td> <!-- Cost Price column space -->
       </tr>
     `).join('');
 
