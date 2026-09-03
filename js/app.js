@@ -181,9 +181,9 @@ document.getElementById('btn-type-stationery').addEventListener('click', async (
   showSection('new-stationery');
 });
 
-// ALLOWS HYPHENS (-) AND SPACES IN CODES
+// ALLOWS HYPHENS (-), SLASHES (/), AND SPACES IN CODES
 function cleanISBN(isbn) {
-  return isbn ? isbn.replace(/[^0-9Xa-zA-Z\- ]/gi, '').trim() : '';
+  return isbn ? isbn.replace(/[^0-9Xa-zA-Z\-\/ ]/gi, '').trim() : '';
 }
 
 // Google Search Helper
@@ -283,7 +283,7 @@ document.getElementById('form-stationery-direct').addEventListener('submit', asy
 
   const stationery = {
     itemType: 'Stationery',
-    isbn: barcode, // Supports formats like 11-30 or blank
+    isbn: barcode, // Supports hyphenated codes like 11-30 or blank
     title: name,
     publisher: supplier,
     rackLocation: rack,
