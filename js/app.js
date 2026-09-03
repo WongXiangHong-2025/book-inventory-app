@@ -135,7 +135,6 @@ function showExistingModal(item) {
   modalExisting.classList.remove('hidden');
 }
 
-// Dynamic Publisher/Supplier suggestions populate
 async function updatePublisherSuggestions() {
   const allBooks = await StorageManager.getAllBooks();
   const publishers = [...new Set(allBooks.map(b => b.publisher).filter(Boolean))].sort();
@@ -181,7 +180,7 @@ document.getElementById('btn-type-stationery').addEventListener('click', async (
   showSection('new-stationery');
 });
 
-// ALLOWS HYPHENS (-), SLASHES (/), AND SPACES IN CODES
+// ALLOWS HYPHENS (-), SLASHES (/), AND SPACES IN BARCODES
 function cleanISBN(isbn) {
   return isbn ? isbn.replace(/[^0-9Xa-zA-Z\-\/ ]/gi, '').trim() : '';
 }
@@ -295,7 +294,7 @@ document.getElementById('form-stationery-direct').addEventListener('submit', asy
   await StorageManager.saveBook(stationery);
   StorageManager.setLastRack(rack);
 
-  // Reset item inputs while keeping supplier and rack
+  // Clear name, qty, price, code; keep supplier and rack for speed
   document.getElementById('sd-barcode').value = '';
   document.getElementById('sd-name').value = '';
   document.getElementById('sd-qty').value = 1;
@@ -372,7 +371,7 @@ function filterAndRender(books) {
 function renderTable(books) {
   const tbody = document.getElementById('inventory-tbody');
   tbody.innerHTML = books.map(b => {
-    // Unique key: uses auto-increment ID if present, otherwise falls back to isbn for older schema entries
+    // Unique identifier for either schema version
     const itemKey = b.id !== undefined ? b.id : b.isbn;
     const safeTitle = (b.title || '').replace(/'/g, "\\'");
 
@@ -499,7 +498,7 @@ document.getElementById('btn-print-supplier-sheets').addEventListener('click', (
         <td style="text-align: center;">${item.bookCategory}</td>
         <td style="text-align: right;">${item.sellingPrice.toFixed(2)}</td>
         <td style="text-align: center; font-weight: bold;">${item.quantity}</td>
-        <td style="width: 80px;"></td> <!-- Blank space for recorded Cost Price -->
+        <td style="width: 80px;"></td>
       </tr>
     `).join('');
 
@@ -533,7 +532,7 @@ document.getElementById('btn-print-supplier-sheets').addEventListener('click', (
   window.print();
 });
 
-// 2. Save as PDF (Triggers print-to-PDF on current filtered view)
+// 2. Save as PDF (Triggers browser Save-as-PDF on the filtered items)
 document.getElementById('btn-save-pdf').addEventListener('click', () => {
   const itemsToPrint = filteredBooksList.length > 0 ? filteredBooksList : [];
   if (itemsToPrint.length === 0) {
@@ -590,7 +589,7 @@ document.getElementById('btn-save-pdf').addEventListener('click', () => {
   window.print();
 });
 
-// 3. Delete All Items (Double confirmation safety)
+// 3. Delete All Items (Double confirmation safeguard)
 document.getElementById('btn-delete-all').addEventListener('click', async () => {
   const allBooks = await StorageManager.getAllBooks();
   if (allBooks.length === 0) {
