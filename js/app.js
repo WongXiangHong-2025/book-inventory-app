@@ -6,9 +6,9 @@ const scanner = new BarcodeScanner('video-preview', handleScannedISBN);
 
 // DOM Elements
 const sectionScan = document.getElementById('section-scan');
-const sectionStationeryDirect = document.getElementById('section-stationery-direct');
 const sectionNewBook = document.getElementById('section-new-book');
 const sectionNewStationery = document.getElementById('section-new-stationery');
+const sectionStationeryDirect = document.getElementById('section-stationery-direct');
 const sectionInventory = document.getElementById('section-inventory');
 const modalItemType = document.getElementById('modal-item-type');
 const modalExisting = document.getElementById('modal-existing-book');
@@ -16,14 +16,7 @@ const manualIsbnInput = document.getElementById('manual-isbn');
 
 // Navigation Switches
 document.getElementById('nav-scan').addEventListener('click', () => showSection('scan'));
-document.getElementById('nav-stationery-direct').addEventListener('click', () => {
-  showSection('stationery-direct');
-  const lastRack = StorageManager.getLastRack();
-  if (lastRack && !document.getElementById('sd-rack').value) {
-    document.getElementById('sd-rack').value = lastRack;
-  }
-  document.getElementById('sd-barcode').focus();
-});
+document.getElementById('nav-stationery-direct').addEventListener('click', () => showSection('stationery-direct'));
 document.getElementById('nav-inventory').addEventListener('click', () => {
   showSection('inventory');
   loadInventory();
@@ -31,9 +24,9 @@ document.getElementById('nav-inventory').addEventListener('click', () => {
 
 function showSection(name) {
   sectionScan.classList.add('hidden');
-  sectionStationeryDirect.classList.add('hidden');
   sectionNewBook.classList.add('hidden');
   sectionNewStationery.classList.add('hidden');
+  sectionStationeryDirect.classList.add('hidden');
   sectionInventory.classList.add('hidden');
   modalExisting.classList.add('hidden');
   modalItemType.classList.add('hidden');
@@ -45,10 +38,6 @@ function showSection(name) {
   if (name === 'scan') {
     sectionScan.classList.remove('hidden');
     document.getElementById('nav-scan').classList.add('active');
-  } else if (name === 'stationery-direct') {
-    sectionStationeryDirect.classList.remove('hidden');
-    document.getElementById('nav-stationery-direct').classList.add('active');
-    scanner.stop();
   } else if (name === 'inventory') {
     sectionInventory.classList.remove('hidden');
     document.getElementById('nav-inventory').classList.add('active');
@@ -58,6 +47,10 @@ function showSection(name) {
     scanner.stop();
   } else if (name === 'new-stationery') {
     sectionNewStationery.classList.remove('hidden');
+    scanner.stop();
+  } else if (name === 'stationery-direct') {
+    sectionStationeryDirect.classList.remove('hidden');
+    document.getElementById('nav-stationery-direct').classList.add('active');
     scanner.stop();
   }
 }
@@ -73,6 +66,7 @@ document.getElementById('btn-manual-submit').addEventListener('click', () => {
   if (isbn) {
     handleScannedISBN(isbn);
   } else {
+    // If entered blank manually, allow directly adding non-barcoded item
     pendingBarcode = '';
     modalItemType.classList.remove('hidden');
   }
@@ -102,7 +96,7 @@ async function handleScannedISBN(rawISBN) {
         "1"
       );
 
-      if (choice === null) return;
+      if (choice === null) return; // Cancelled
 
       let selectedIndex = parseInt(choice, 10) - 1;
       if (!isNaN(selectedIndex) && localMatches[selectedIndex]) {
@@ -181,9 +175,8 @@ document.getElementById('btn-type-stationery').addEventListener('click', async (
   showSection('new-stationery');
 });
 
-// ALLOWS HYPHENS (-), SLASHES (/), AND SPACES IN CODES
 function cleanISBN(isbn) {
-  return isbn ? isbn.replace(/[^0-9Xa-zA-Z\-\/ ]/gi, '').trim() : '';
+  return isbn ? isbn.replace(/[^0-9Xa-zA-Z]/gi, '') : '';
 }
 
 // Google Search Helper
@@ -223,7 +216,7 @@ document.getElementById('form-new-book').addEventListener('submit', async (e) =>
   const rack = document.getElementById('nb-rack').value.trim();
   const book = {
     itemType: 'Book',
-    isbn: cleanISBN(document.getElementById('nb-isbn').value),
+    isbn: document.getElementById('nb-isbn').value.trim(),
     title: document.getElementById('nb-title').value.trim(),
     publisher: document.getElementById('nb-publisher').value.trim(),
     rackLocation: rack,
@@ -243,14 +236,14 @@ document.getElementById('btn-cancel-new-book').addEventListener('click', () => {
   showSection('scan');
 });
 
-// Save Stationery via Scan
+// Save Stationery
 document.getElementById('form-new-stationery').addEventListener('submit', async (e) => {
   e.preventDefault();
 
   const rack = document.getElementById('ns-rack').value.trim();
   const stationery = {
     itemType: 'Stationery',
-    isbn: cleanISBN(document.getElementById('ns-barcode').value),
+    isbn: document.getElementById('ns-barcode').value.trim(),
     title: document.getElementById('ns-name').value.trim(),
     publisher: document.getElementById('ns-supplier').value.trim(),
     rackLocation: rack,
@@ -270,20 +263,25 @@ document.getElementById('btn-cancel-new-stat').addEventListener('click', () => {
   showSection('scan');
 });
 
-// DIRECT STATIONERY STOCKTAKE SUBMIT (Continuous Entry)
+// Save Direct Stationery Stocktake
 document.getElementById('form-stationery-direct').addEventListener('submit', async (e) => {
   e.preventDefault();
 
   const rack = document.getElementById('sd-rack').value.trim();
   const supplier = document.getElementById('sd-supplier').value.trim();
-  const barcode = cleanISBN(document.getElementById('sd-barcode').value);
   const name = document.getElementById('sd-name').value.trim();
+  const barcode = document.getElementById('sd-barcode').value.trim();
   const qty = parseInt(document.getElementById('sd-qty').value, 10);
   const price = parseFloat(document.getElementById('sd-price').value);
 
+  if (!supplier || !name || !rack || Number.isNaN(qty) || qty < 1 || Number.isNaN(price)) {
+    alert('Please complete all required stationery stocktake fields with valid values.');
+    return;
+  }
+
   const stationery = {
     itemType: 'Stationery',
-    isbn: barcode, // Supports hyphenated codes like 11-30 or blank
+    isbn: barcode,
     title: name,
     publisher: supplier,
     rackLocation: rack,
@@ -295,19 +293,10 @@ document.getElementById('form-stationery-direct').addEventListener('submit', asy
   await StorageManager.saveBook(stationery);
   StorageManager.setLastRack(rack);
 
-  // Reset item inputs while keeping supplier and rack
-  document.getElementById('sd-barcode').value = '';
-  document.getElementById('sd-name').value = '';
+  document.getElementById('form-stationery-direct').reset();
   document.getElementById('sd-qty').value = 1;
-  document.getElementById('sd-price').value = '';
-
+  alert('Stationery stock count saved successfully!');
   document.getElementById('sd-barcode').focus();
-
-  const toast = document.createElement('div');
-  toast.textContent = `Saved "${name}" successfully!`;
-  toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#10b981;color:#fff;padding:8px 16px;border-radius:6px;z-index:9999;font-weight:600;font-size:0.9rem;box-shadow:0 2px 8px rgba(0,0,0,0.2);';
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 1800);
 });
 
 // Inventory Table and Filters
@@ -425,7 +414,7 @@ window.editBook = async (id) => {
   const newQty = prompt('Edit Quantity:', book.quantity);
   if (newQty === null) return;
 
-  book.isbn = cleanISBN(newBarcode);
+  book.isbn = newBarcode.trim();
   book.title = newTitle.trim();
   book.publisher = newPublisher.trim();
   book.rackLocation = newRack.trim();
@@ -495,6 +484,7 @@ document.getElementById('btn-print-supplier-sheets').addEventListener('click', (
     return;
   }
 
+  // Group items by Supplier/Publisher
   const supplierGroups = {};
   itemsToPrint.forEach(item => {
     const supplier = (item.publisher && item.publisher.trim()) ? item.publisher.trim() : 'Unknown / Unassigned Supplier';
@@ -510,6 +500,7 @@ document.getElementById('btn-print-supplier-sheets').addEventListener('click', (
   const targetRackLabel = rackFilter ? `Rack Location: ${rackFilter}` : `All Racks`;
   const currentDate = new Date().toLocaleDateString();
 
+  // Create a separate printable page per supplier
   Object.keys(supplierGroups).sort().forEach(supplierName => {
     const items = supplierGroups[supplierName];
     const totalQty = items.reduce((sum, i) => sum + i.quantity, 0);
@@ -526,7 +517,7 @@ document.getElementById('btn-print-supplier-sheets').addEventListener('click', (
         <td style="text-align: center;">${item.bookCategory}</td>
         <td style="text-align: right;">${item.sellingPrice.toFixed(2)}</td>
         <td style="text-align: center; font-weight: bold;">${item.quantity}</td>
-        <td style="width: 80px;"></td>
+        <td style="width: 80px;"></td> <!-- Blank space for recorded Cost Price -->
       </tr>
     `).join('');
 
