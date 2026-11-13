@@ -1,233 +1,71 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SBC Inventory Manager</title>
-  <link rel="stylesheet" href="./css/styles.css?v=8">
-  <script src="https://unpkg.com/@zxing/library@latest"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SBC Digital Stock Audit</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <div class="container">
+        <header>
+            <h1>SBC Digital Stocktake</h1>
+            <p>Insan Gedung Ilmu Trading</p>
+        </header>
 
-  <header class="app-header">
-    <h1>SBC Inventory Manager</h1>
-    <nav class="app-nav">
-      <button id="nav-scan" class="nav-btn active">Book Scan / Code</button>
-      <button id="nav-stationery-direct" class="nav-btn">Stationery Count</button>
-      <button id="nav-inventory" class="nav-btn">Inventory List</button>
-    </nav>
-  </header>
+        <section class="audit-form-card">
+            <h2>Record Stock</h2>
+            <form id="auditForm">
+                <div class="form-group">
+                    <label for="rackId">Rack ID:</label>
+                    <input type="text" id="rackId" placeholder="e.g., 23 or 3A" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="itemCode">Item Code / ISBN:</label>
+                    <!-- type="text" ensures custom hyphenated codes like 11-30 are accepted safely -->
+                    <input type="text" id="itemCode" placeholder="e.g., 11-30 or 955..." required>
+                </div>
 
-  <main>
-    <!-- SCANNER SECTION -->
-    <section id="section-scan" class="view-section active">
-      <div class="scanner-container">
-        <div class="video-wrapper">
-          <video id="video-preview" autoplay muted playsinline></video>
-          
-          <div id="scanner-overlay" class="scanner-overlay hidden">
-            <div class="target-box">
-              <div class="corner top-left"></div>
-              <div class="corner top-right"></div>
-              <div class="corner bottom-left"></div>
-              <div class="corner bottom-right"></div>
-              <div class="scan-line"></div>
+                <div class="form-group">
+                    <label for="expectedQty">System Expected Qty:</label>
+                    <input type="number" id="expectedQty" placeholder="0" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="physicalQty">Physical Count Qty:</label>
+                    <input type="number" id="physicalQty" placeholder="0" required>
+                </div>
+
+                <button type="submit" class="btn-primary">Save Audit Record</button>
+            </form>
+        </section>
+
+        <section class="controls">
+            <button id="exportCsvBtn" class="btn-export">Download All Racks (CSV)</button>
+            <button id="clearDataBtn" class="btn-danger">Clear Device Data</button>
+        </section>
+
+        <section class="data-view">
+            <h2>Saved Records (Local Device)</h2>
+            <div class="table-responsive">
+                <table id="auditTable">
+                    <thead>
+                        <tr>
+                            <th>Rack</th>
+                            <th>Item Code</th>
+                            <th>Expected</th>
+                            <th>Counted</th>
+                            <th>Variance</th>
+                        </tr>
+                    </thead>
+                    <tbody id="auditTableBody">
+                        <!-- Data will be injected here via JavaScript -->
+                    </tbody>
+                </table>
             </div>
-            <p class="overlay-hint">Align barcode within frame</p>
-          </div>
-        </div>
-
-        <button id="btn-start-scan" class="btn btn-primary btn-large">Start Camera Scan</button>
-      </div>
-
-      <div class="manual-entry">
-        <h3>Manual Entry</h3>
-        <input type="text" id="manual-isbn" placeholder="Enter ISBN-10, ISBN-13, EAN, or Barcode (or leave blank)" />
-        <button id="btn-manual-submit" class="btn btn-secondary">Process Barcode</button>
-      </div>
-    </section>
-
-    <!-- DEDICATED DIRECT STATIONERY STOCKTAKE SECTION -->
-    <section id="section-stationery-direct" class="view-section hidden">
-      <h2>Stationery Stocktake</h2>
-      <form id="form-stationery-direct">
-        <label>SBC Code*:
-          <input type="text" id="sd-barcode" placeholder="e.g. 140, 11-30, 178 (leave blank if none)" />
-        </label>
-
-        <label>Supplier*:
-          <input type="text" id="sd-supplier" placeholder="e.g. tyd, Faber-Castell" required />
-        </label>
-
-        <label>Item Name*:
-          <input type="text" id="sd-name" placeholder="e.g. Stapler, 2B Pencil, Correction Tape" required />
-        </label>
-
-        <label>Location / Rack*:
-          <input type="text" id="sd-rack" placeholder="e.g. a, R-01" required />
-        </label>
-
-        <label>Qty Counted*:
-          <input type="number" id="sd-qty" value="1" min="1" required />
-        </label>
-
-        <label>Selling Price (RM)*:
-          <input type="number" step="0.01" id="sd-price" placeholder="0.00" required />
-        </label>
-
-        <div class="form-actions">
-          <button type="submit" class="btn btn-primary btn-large">Save & Next Item</button>
-        </div>
-      </form>
-    </section>
-
-    <!-- SELECT ITEM TYPE MODAL -->
-    <div id="modal-item-type" class="modal hidden">
-      <div class="modal-content">
-        <h2>Select Item Type</h2>
-        <p>Is this item a Book or a Stationery product?</p>
-        <div class="modal-actions">
-          <button id="btn-type-book" class="btn btn-primary btn-large">Book</button>
-          <button id="btn-type-stationery" class="btn btn-secondary btn-large">Stationery</button>
-        </div>
-      </div>
+        </section>
     </div>
-
-    <!-- EXISTING ITEM MODAL -->
-    <div id="modal-existing-book" class="modal hidden">
-      <div class="modal-content">
-        <h2>Existing Item Found</h2>
-        <p><strong>Item Type:</strong> <span id="ext-type"></span></p>
-        <p><strong>Title/Name:</strong> <span id="ext-title"></span></p>
-        <p><strong>Publisher/Supplier:</strong> <span id="ext-publisher"></span></p>
-        <p><strong>Rack Location:</strong> <span id="ext-rack"></span></p>
-        <p><strong>Category:</strong> <span id="ext-category"></span></p>
-        <p><strong>Price:</strong> RM <span id="ext-price"></span></p>
-        <p><strong>Current Quantity:</strong> <span id="ext-qty"></span></p>
-
-        <hr />
-        <label for="add-qty-input">Add Quantity:</label>
-        <input type="number" id="add-qty-input" value="1" min="1" class="input-large" />
-
-        <div class="modal-actions">
-          <button id="btn-confirm-add" class="btn btn-primary btn-large">Confirm Add</button>
-          <button id="btn-cancel-add" class="btn btn-tertiary">Cancel</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- NEW BOOK FORM -->
-    <section id="section-new-book" class="view-section hidden">
-      <h2>New Book Entry</h2>
-      <form id="form-new-book">
-        <label>ISBN / Barcode:
-          <div style="display: flex; gap: 8px; margin-top: 4px;">
-            <input type="text" id="nb-isbn" readonly style="flex: 1;" />
-            <button type="button" id="btn-search-google" class="btn btn-secondary">Search Google</button>
-          </div>
-        </label>
-
-        <label>Book Title*: <input type="text" id="nb-title" placeholder="Enter title manually if blank" required /></label>
-        <label>Publisher: <input type="text" id="nb-publisher" placeholder="Enter publisher manually if blank" /></label>
-        <label>Rack Location*: <input type="text" id="nb-rack" required /></label>
-        
-        <label>Book Category*:
-          <select id="nb-category" required>
-            <option value="">Select Category</option>
-            <option value="Educational Books">Educational Books</option>
-            <option value="Novel / Comic">Novel / Comic</option>
-          </select>
-        </label>
-
-        <label>Selling Price (RM)*: <input type="number" step="0.01" id="nb-price" required /></label>
-        <label>Initial Quantity*: <input type="number" id="nb-qty" value="1" min="1" required /></label>
-
-        <div class="form-actions">
-          <button type="submit" class="btn btn-primary btn-large">Confirm & Save Book</button>
-          <button type="button" id="btn-cancel-new-book" class="btn btn-tertiary">Cancel</button>
-        </div>
-      </form>
-    </section>
-
-    <!-- NEW STATIONERY FORM (TRIGGERED FROM SCAN) -->
-    <section id="section-new-stationery" class="view-section hidden">
-      <h2>New Stationery Entry</h2>
-      <form id="form-new-stationery">
-        <label>Barcode ID (Optional):
-          <input type="text" id="ns-barcode" placeholder="Leave blank if item has no barcode" />
-        </label>
-
-        <label>Item Name*: <input type="text" id="ns-name" placeholder="e.g. A4 Paper, Gel Pen, Stapler" required /></label>
-        <label>Supplier: <input type="text" id="ns-supplier" placeholder="e.g. Faber-Castell, Double A" /></label>
-        <label>Rack Location*: <input type="text" id="ns-rack" required /></label>
-        <label>Selling Price (RM)*: <input type="number" step="0.01" id="ns-price" required /></label>
-        <label>Initial Quantity*: <input type="number" id="ns-qty" value="1" min="1" required /></label>
-
-        <div class="form-actions">
-          <button type="submit" class="btn btn-primary btn-large">Confirm & Save Stationery</button>
-          <button type="button" id="btn-cancel-new-stat" class="btn btn-tertiary">Cancel</button>
-        </div>
-      </form>
-    </section>
-
-    <!-- INVENTORY LIST SECTION -->
-    <section id="section-inventory" class="view-section hidden">
-      <div class="summary-cards">
-        <div class="card"><span>Total Titles/Items</span><strong id="stat-titles">0</strong></div>
-        <div class="card"><span>Total Stock</span><strong id="stat-stock">0</strong></div>
-        <div class="card"><span>Educational Books</span><strong id="stat-edu">0</strong></div>
-        <div class="card"><span>Novel / Comic</span><strong id="stat-comics">0</strong></div>
-        <div class="card"><span>Stationery</span><strong id="stat-stationery">0</strong></div>
-      </div>
-
-      <div class="inventory-controls">
-        <input type="text" id="inv-search" placeholder="Search by Barcode, Title/Name, Publisher/Supplier, Rack, Category..." />
-        
-        <div class="filters">
-          <select id="filter-rack"><option value="">All Racks</option></select>
-          <select id="filter-publisher"><option value="">All Publishers/Suppliers</option></select>
-          <select id="filter-category">
-            <option value="">All Categories</option>
-            <option value="Educational Books">Educational Books</option>
-            <option value="Novel / Comic">Novel / Comic</option>
-            <option value="Stationery">Stationery</option>
-          </select>
-        </div>
-
-        <!-- STACKED ACTION BUTTONS -->
-        <div class="export-actions">
-          <button id="btn-print-supplier-sheets" class="btn btn-primary btn-action-stack">Print Supplier Sheets (By Rack)</button>
-          <button id="btn-save-pdf" class="btn btn-primary btn-action-stack">Save as PDF</button>
-          <button id="btn-delete-all" class="btn btn-danger btn-action-stack">Delete All Items</button>
-        </div>
-      </div>
-
-      <div class="table-wrapper">
-        <table id="inventory-table">
-          <thead>
-            <tr>
-              <th>Rack Location</th>
-              <th>Category</th>
-              <th>Publisher / Supplier</th>
-              <th>Barcode / ISBN</th>
-              <th>Title / Item Name</th>
-              <th>Qty Available</th>
-              <th>Selling Price (RM)</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody id="inventory-tbody"></tbody>
-        </table>
-      </div>
-    </section>
-  </main>
-
-  <div id="print-container" class="print-only"></div>
-
-  <!-- BUMPED SCRIPT TAGS TO V8 TO BYPASS OLD CACHE -->
-  <script src="./js/storage.js?v=8"></script>
-  <script src="./js/metadata.js?v=8"></script>
-  <script src="./js/scanner.js?v=8"></script>
-  <script src="./js/app.js?v=8"></script>
+    <script src="app.js"></script>
 </body>
 </html>
